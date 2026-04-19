@@ -1,165 +1,87 @@
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Settings, LogOut } from 'lucide-react-native';
+// app/(tabs)/profile.tsx
+import React from 'react';
+import { View, Text, ScrollView, Pressable, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { Colors, Spacing, BorderRadius, FontSize } from '../../src/constants/theme';
+import { useTheme, useTweaks, Space, Radius, Size, ACCENTS, AccentKey } from '../../src/constants/theme';
+import { Card, SectionLabel, Button, StatTile, Divider } from '../../src/components/primitives';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function ProfileScreen() {
-  const handleSignOut = () => {
-    // TODO: Implement Supabase sign out
-    router.replace('/(auth)/login');
-  };
+  const t = useTheme();
+  const { signOut, user } = useAuth();
+  const { tweaks, setTweaks } = useTweaks();
+  const displayName = user?.name ?? user?.email?.split('@')[0] ?? 'Athlete';
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+  const secondaryLine = user?.email ?? 'Signed in member';
+  const stats = { workouts: 0, streak: 0, followers: 0 };
+
+  const confirmSignOut = () => Alert.alert('Sign out?', 'You will return to the login screen.', [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Sign out', style: 'destructive', onPress: async () => { await signOut(); router.replace('/(auth)/login'); } },
+  ]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Profile</Text>
-          <TouchableOpacity>
-            <Settings size={24} color={Colors.textSecondary} />
-          </TouchableOpacity>
+    <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: Space.lg, paddingBottom: 120 }}>
+      {/* Identity */}
+      <View style={{ alignItems: 'center', marginVertical: Space.lg }}>
+        <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: t.primary, alignItems: 'center', justifyContent: 'center', marginBottom: Space.md }}>
+          <Text style={{ color: t.onPrimary, fontSize: Size['3xl'], fontWeight: '800' }}>{initials}</Text>
         </View>
+        <Text style={{ color: t.text, fontSize: Size.xl, fontWeight: '800' }}>{displayName}</Text>
+        <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 2 }}>{secondaryLine}</Text>
+      </View>
 
-        <View style={styles.card}>
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>?</Text>
-          </View>
-          <Text style={styles.userName}>Set up your profile</Text>
-          <Text style={styles.userHandle}>Sign in to get started</Text>
-        </View>
+      <View style={{ flexDirection: 'row', gap: Space.sm, marginBottom: Space.lg }}>
+        <StatTile value={stats.workouts} label="Workouts" accent />
+        <StatTile value={stats.streak} label="Streak" />
+        <StatTile value={stats.followers} label="Followers" />
+      </View>
 
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Workouts</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Followers</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Following</Text>
+      <SectionLabel>Appearance</SectionLabel>
+      <Card style={{ marginBottom: Space.md }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Space.md }}>
+          <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '600' }}>Theme</Text>
+          <View style={{ flexDirection: 'row', backgroundColor: t.surface2, borderRadius: Radius.full, padding: 3 }}>
+            {(['light','dark'] as const).map(m => (
+              <Pressable key={m} onPress={() => setTweaks({ mode: m })}
+                style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: Radius.full, backgroundColor: tweaks.mode === m ? t.primary : 'transparent' }}>
+                <Text style={{ color: tweaks.mode === m ? t.onPrimary : t.text, fontSize: Size.xs, fontWeight: '700', textTransform: 'capitalize' }}>{m}</Text>
+              </Pressable>
+            ))}
           </View>
         </View>
-
-        <View style={styles.card}>
-          {['Account', 'Notifications', 'Units', 'Connected Gyms', 'Help & Support'].map(
-            (item) => (
-              <TouchableOpacity key={item} style={styles.menuItem}>
-                <Text style={styles.menuText}>{item}</Text>
-              </TouchableOpacity>
-            )
-          )}
+        <Divider />
+        <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '600', marginBottom: Space.sm }}>Accent color</Text>
+        <View style={{ flexDirection: 'row', gap: Space.sm }}>
+          {(Object.keys(ACCENTS) as AccentKey[]).map(k => (
+            <Pressable key={k} onPress={() => setTweaks({ accent: k })}
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: ACCENTS[k].primary, borderWidth: 3, borderColor: tweaks.accent === k ? t.text : 'transparent' }} />
+          ))}
         </View>
+      </Card>
 
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <LogOut size={20} color={Colors.error} />
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+      <SectionLabel>Account</SectionLabel>
+      <Card style={{ padding: 0 }}>
+        {['Edit profile','Notifications','Units (kg/lb)','Privacy','Help & support'].map((row, i, arr) => (
+          <View key={row}>
+            <Pressable style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Space.lg }}>
+              <Text style={{ color: t.text, fontSize: Size.md }}>{row}</Text>
+              <Text style={{ color: t.textMuted, fontSize: Size.md }}>›</Text>
+            </Pressable>
+            {i < arr.length - 1 && <View style={{ height: 1, backgroundColor: t.border, marginHorizontal: Space.lg }} />}
+          </View>
+        ))}
+      </Card>
+
+      <View style={{ marginTop: Space.xl }}>
+        <Button title="Sign out" variant="danger" size="lg" onPress={confirmSignOut} />
+      </View>
+    </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  content: {
-    padding: Spacing.xl,
-    gap: Spacing.xl,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: FontSize['2xl'],
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.xl,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  avatarPlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.surfaceHigh,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  avatarText: {
-    fontSize: FontSize['2xl'],
-    color: Colors.textMuted,
-  },
-  userName: {
-    fontSize: FontSize.lg,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  userHandle: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xs,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: FontSize.xl,
-    fontWeight: '800',
-    color: Colors.text,
-  },
-  statLabel: {
-    fontSize: FontSize.xs,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xs,
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: Colors.border,
-  },
-  menuItem: {
-    paddingVertical: Spacing.md,
-    width: '100%',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  menuText: {
-    fontSize: FontSize.md,
-    color: Colors.text,
-  },
-  signOutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.lg,
-  },
-  signOutText: {
-    fontSize: FontSize.md,
-    fontWeight: '600',
-    color: Colors.error,
-  },
-});
