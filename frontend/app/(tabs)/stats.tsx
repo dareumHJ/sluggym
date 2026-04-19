@@ -4,6 +4,7 @@ import { View, Text, ScrollView } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme, Space, Size, withAlpha } from '../../src/constants/theme';
 import { Card, SectionLabel, StatTile } from '../../src/components/primitives';
+import { AnimatedSection } from '../../src/components/AnimatedSection';
 import { RECENT_WORKOUTS, PR_HISTORY } from '../../src/data/mock';
 
 const VOLUME_WEEKS = [3200, 3850, 4100, 4520, 4200, 5100, 4820];
@@ -31,7 +32,7 @@ function VolumeChart() {
 export default function StatsScreen() {
   const t = useTheme();
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: Space.lg, paddingBottom: 120 }}>
+      <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: Space.lg, paddingTop: Space['4xl'], paddingBottom: 120 }}>
       <Text style={{ color: t.text, fontSize: Size['2xl'], fontWeight: '800', marginBottom: Space.md }}>Your progress</Text>
 
       <View style={{ flexDirection: 'row', gap: Space.sm, marginBottom: Space.lg }}>
@@ -41,14 +42,16 @@ export default function StatsScreen() {
       </View>
 
       <SectionLabel>Weekly Volume (kg)</SectionLabel>
+      <AnimatedSection delay={80}>
       <Card>
         <VolumeChart />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: Space.sm }}>
           {['W1','W2','W3','W4','W5','W6','W7'].map(w => <Text key={w} style={{ color: t.textMuted, fontSize: 10 }}>{w}</Text>)}
         </View>
       </Card>
+      </AnimatedSection>
 
-      <View style={{ marginTop: Space.xl }}>
+      <AnimatedSection delay={160} style={{ marginTop: Space.xl }}>
         <SectionLabel>Recent PRs</SectionLabel>
         <View style={{ gap: Space.sm }}>
           {PR_HISTORY.map((p, i) => (
@@ -67,9 +70,9 @@ export default function StatsScreen() {
             </Card>
           ))}
         </View>
-      </View>
+      </AnimatedSection>
 
-      <View style={{ marginTop: Space.xl }}>
+      <AnimatedSection delay={240} style={{ marginTop: Space.xl }}>
         <SectionLabel>Recent Workouts</SectionLabel>
         <View style={{ gap: Space.sm }}>
           {RECENT_WORKOUTS.map(w => (
@@ -86,7 +89,7 @@ export default function StatsScreen() {
             </Card>
           ))}
         </View>
-      </View>
+      </AnimatedSection>
     </ScrollView>
   );
 }

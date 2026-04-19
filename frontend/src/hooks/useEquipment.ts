@@ -1,30 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import type { LiveEquipment } from '../types';
-
-type UseEquipmentState = {
-  equipment: LiveEquipment[];
-  error: string | null;
-  loading: boolean;
-};
 
 export interface EquipmentListItem {
   id: string;
   name: string;
-  type: string;
+  category: string;
   location: string | null;
   quantity: number;
-}
-
-interface UseEquipmentOptions {
-  query?: string;
-  type?: string;
+  description?: string | null;
 }
 
 interface UseEquipmentReturn {
   equipment: EquipmentListItem[];
   filteredEquipment: EquipmentListItem[];
-  types: string[];
+  categories: string[];
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -33,23 +22,24 @@ interface UseEquipmentReturn {
 interface EquipmentRow {
   id: number | string;
   name: string;
-  type: string;
+  category: string;
   location: string | null;
   quantity: number | null;
+  description?: string | null;
 }
 
 function normalizeEquipmentRow(row: EquipmentRow): EquipmentListItem {
   return {
     id: String(row.id),
     name: row.name,
-    type: row.type,
+    category: row.category,
     location: row.location,
     quantity: row.quantity ?? 0,
+    description: row.description ?? null,
   };
 }
 
-export function useEquipment(options: UseEquipmentOptions = {}): UseEquipmentReturn {
-  const { query = '', type = 'All' } = options;
+export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
   const [equipment, setEquipment] = useState<EquipmentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,13 +52,12 @@ export function useEquipment(options: UseEquipmentOptions = {}): UseEquipmentRet
     }
 
     const { data, error: fetchError } = await supabase
-      .from('equipment')
-      .select('id, name, type, location, quantity')
+      .from('gym-equipment')
+      .select('id, name, category, location, quantity, description')
+      .order('category', { ascending: true })
       .order('name', { ascending: true });
 
-    if (!isMountedRef.current) {
-      return;
-    }
+    if (!isMountedRef.current) return;
 
     if (fetchError) {
       setEquipment([]);
@@ -82,6 +71,7 @@ export function useEquipment(options: UseEquipmentOptions = {}): UseEquipmentRet
   }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
     void refresh();
 
     return () => {
@@ -89,34 +79,37 @@ export function useEquipment(options: UseEquipmentOptions = {}): UseEquipmentRet
     };
   }, [refresh]);
 
-  const types = useMemo(
-    () => ['All', ...Array.from(new Set(equipment.map((item) => item.type))).sort((a, b) => a.localeCompare(b))],
+  const categories = useMemo(
+    () => ['All', ...Array.from(new Set(equipment.map((item) => item.category).filter(Boolean))).sort((a, b) => a.localeCompare(b))],
     [equipment],
   );
 
   const normalizedQuery = query.trim().toLowerCase();
-  const normalizedType = type.trim().toLowerCase();
+  const normalizedCategory = category.trim().toLowerCase();
 
   const filteredEquipment = useMemo(
     () =>
       equipment.filter((item) => {
-        const matchesType =
-          normalizedType === '' || normalizedType === 'all' || item.type.toLowerCase() === normalizedType;
+        const matchesCategory =
+          normalizedCategory === '' ||
+          normalizedCategory === 'all' ||
+          item.category.toLowerCase() === normalizedCategory;
         const matchesQuery =
           normalizedQuery === '' ||
           item.name.toLowerCase().includes(normalizedQuery) ||
-          item.type.toLowerCase().includes(normalizedQuery) ||
-          item.location?.toLowerCase().includes(normalizedQuery);
+          item.category.toLowerCase().includes(normalizedQuery) ||
+          item.location?.toLowerCase().includes(normalizedQuery) ||
+          item.description?.toLowerCase().includes(normalizedQuery);
 
-        return matchesType && Boolean(matchesQuery);
+        return matchesCategory && Boolean(matchesQuery);
       }),
-    [equipment, normalizedQuery, normalizedType],
+    [equipment, normalizedCategory, normalizedQuery],
   );
 
   return {
     equipment,
     filteredEquipment,
-    types,
+    categories,
     loading,
     error,
     refresh,

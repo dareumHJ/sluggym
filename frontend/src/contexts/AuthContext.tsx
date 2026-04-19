@@ -1,21 +1,24 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
+import { makeRedirectUri } from 'expo-auth-session';
+import * as QueryParams from 'expo-auth-session/build/QueryParams';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 import { supabase } from '../lib/supabase';
 
 type User = { id: string; email: string; name: string } | null;
 type Ctx = {
   user: User;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (
-    email: string,
-    password: string,
-    name: string,
-  ) => Promise<{ hasSession: boolean }>;
+  signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<Ctx | undefined>(undefined);
+const redirectTo = makeRedirectUri();
+
+WebBrowser.maybeCompleteAuthSession();
 
 function mapSession(session: Session | null): User {
   const user = session?.user;
@@ -33,55 +36,128 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const createSessionFromUrl = useCallback(async (url: string) => {
+    const { params, errorCode } = QueryParams.getQueryParams(url);
+    if (errorCode) throw new Error(errorCode);
+
+    const accessToken = params.access_token;
+    const refreshToken = params.refresh_token;
+
+    if (!accessToken || !refreshToken) return null;
+
+    const { data, error } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    if (error) throw error;
+    return data.session;
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth
-      .getSession()
-      .then(({ data }) => {
+    const boot = async () => {
+      try {
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl) {
+          await createSessionFromUrl(initialUrl);
+        }
+      } catch {
+        // Ignore callback parsing errors during boot and fall through to session check.
+      }
+
+      try {
+        const { data } = await supabase.auth.getSession();
         if (mounted) {
           setSession(data.session ?? null);
           setLoading(false);
         }
-      })
-      .catch(() => {
+      } catch {
         if (mounted) setLoading(false);
-      });
+      }
+    };
 
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    void boot();
+
+    const authSubscription = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession ?? null);
       setLoading(false);
     });
 
+    const linkSubscription = Linking.addEventListener('url', ({ url }) => {
+      void createSessionFromUrl(url)
+        .catch(() => {
+          // OAuth callback errors surface during user-initiated sign in.
+        })
+        .finally(() => {
+          if (mounted) setLoading(false);
+        });
+    });
+
     return () => {
       mounted = false;
-      data.subscription.unsubscribe();
+      authSubscription.data.subscription.unsubscribe();
+      linkSubscription.remove();
     };
-  }, []);
+  }, [createSessionFromUrl]);
+
+  const signInWithGoogle = useCallback(async () => {
+    if (Platform.OS === 'web') {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
+      });
+      if (error) throw error;
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        skipBrowserRedirect: true,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'select_account',
+        },
+      },
+    });
+
+    if (error) throw error;
+    if (!data?.url) throw new Error('Missing Google authorization URL.');
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+
+    if (result.type === 'success' && result.url) {
+      await createSessionFromUrl(result.url);
+      return;
+    }
+
+    if (result.type === 'cancel') {
+      throw new Error('Google sign-in was cancelled.');
+    }
+
+    throw new Error('Google sign-in did not complete.');
+  }, [createSessionFromUrl]);
 
   const value = useMemo<Ctx>(
     () => ({
       user: mapSession(session),
       loading,
-      signIn: async (email, password) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      },
-      signUp: async (email, password, name) => {
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { name } },
-        });
-        if (error) throw error;
-        return { hasSession: Boolean(data.session) };
-      },
+      signInWithGoogle,
       signOut: async () => {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
       },
     }),
-    [loading, session],
+    [loading, session, signInWithGoogle],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

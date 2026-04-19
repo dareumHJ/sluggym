@@ -6,16 +6,24 @@ const POLL_INTERVAL_MS = 60_000;
 const apiBaseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').replace(/\/$/, '');
 
 type UseLiveOccupancyState = {
-  data: LiveOccupancy | null;
+  data: LiveOccupancy;
   error: string | null;
   loading: boolean;
   refreshing: boolean;
 };
 
+const fallbackData: LiveOccupancy = {
+  count: 0,
+  location: 'East Field House',
+  source: 'fallback',
+  timestamp: null,
+  message: 'API connection failed',
+};
+
 export function useLiveOccupancy() {
   const [state, setState] = useState<UseLiveOccupancyState>({
-    data: null,
-    error: apiBaseUrl ? null : 'Set EXPO_PUBLIC_API_BASE_URL to load live headcount.',
+    data: fallbackData,
+    error: apiBaseUrl ? null : 'API connection failed',
     loading: true,
     refreshing: false,
   });
@@ -24,8 +32,8 @@ export function useLiveOccupancy() {
   const reload = useCallback(async () => {
     if (!apiBaseUrl) {
       setState({
-        data: null,
-        error: 'Set EXPO_PUBLIC_API_BASE_URL to load live headcount.',
+        data: fallbackData,
+        error: 'API connection failed',
         loading: false,
         refreshing: false,
       });
@@ -35,12 +43,15 @@ export function useLiveOccupancy() {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
 
-    setState((prev) => ({
-      data: prev.data,
-      error: null,
-      loading: prev.data === null,
-      refreshing: prev.data !== null,
-    }));
+    setState((prev) => {
+      const hasLiveSnapshot = prev.data.source === 'api' && typeof prev.data.count === 'number';
+      return {
+        data: prev.data,
+        error: null,
+        loading: !hasLiveSnapshot,
+        refreshing: hasLiveSnapshot,
+      };
+    });
 
     try {
       const response = await fetch(`${apiBaseUrl}/occupancy`);
@@ -50,14 +61,29 @@ export function useLiveOccupancy() {
 
       const payload = (await response.json()) as LiveOccupancy;
       if (payload.source !== 'api' || typeof payload.count !== 'number') {
-        throw new Error(payload.message ?? 'Live headcount is currently unavailable.');
+        setState({
+          data: {
+            ...fallbackData,
+            location: payload.location ?? fallbackData.location,
+            timestamp: payload.timestamp ?? null,
+            message: payload.message ?? fallbackData.message,
+          },
+          error: 'API connection failed',
+          loading: false,
+          refreshing: false,
+        });
+        return;
       }
 
       setState({ data: payload, error: null, loading: false, refreshing: false });
-    } catch (error) {
+    } catch {
       setState((prev) => ({
-        data: prev.data,
-        error: error instanceof Error ? error.message : 'Unable to load live headcount.',
+        data: {
+          ...fallbackData,
+          location: prev.data.location ?? fallbackData.location,
+          timestamp: prev.data.timestamp ?? null,
+        },
+        error: 'API connection failed',
         loading: false,
         refreshing: false,
       }));

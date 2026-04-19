@@ -1,11 +1,14 @@
 // app/(tabs)/index.tsx — Home screen
 import React from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { useTheme, Space, Size } from '../../src/constants/theme';
-import { Button, Card } from '../../src/components/primitives';
+import { useTheme, Space, Size, withAlpha } from '../../src/constants/theme';
+import { Button, Card, SectionLabel } from '../../src/components/primitives';
+import { OccupancyBar, PopularTimes } from '../../src/components/Occupancy';
+import { AnimatedSection } from '../../src/components/AnimatedSection';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useLiveOccupancy } from '../../src/hooks/useLiveOccupancy';
+import { HOURLY, ZONES } from '../../src/data/mock';
 
 function formatTimestamp(timestamp?: string | null) {
   if (!timestamp) return 'Waiting for a live update';
@@ -22,16 +25,18 @@ export default function HomeScreen() {
   const { data, error, loading, refreshing, reload } = useLiveOccupancy();
   const displayName = user?.name ?? user?.email?.split('@')[0] ?? 'Athlete';
   const firstName = displayName.split(' ')[0];
+  const hour = new Date().getHours();
+  const occupancyPct = Math.max(0, Math.min(100, data.count));
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ paddingBottom: 120 }}>
       <View style={{ paddingHorizontal: Space.lg, paddingTop: Space['2xl'], paddingBottom: Space.md }}>
         <Text style={{ color: t.textSecondary, fontSize: Size.sm }}>Good morning,</Text>
         <Text style={{ color: t.text, fontSize: Size['3xl'], fontWeight: '800', letterSpacing: -0.5 }}>{firstName}</Text>
       </View>
 
-      <View style={{ paddingHorizontal: Space.lg, marginBottom: Space.lg }}>
-        <Card style={{ alignItems: 'center', paddingVertical: Space['2xl'] }}>
+      <AnimatedSection delay={40} style={{ paddingHorizontal: Space.lg, marginBottom: Space.lg }}>
+        <Card style={{ paddingVertical: Space['2xl'] }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Space.md }}>
             <View
               style={{
@@ -50,52 +55,32 @@ export default function HomeScreen() {
                 fontWeight: '700',
               }}
             >
-              Live headcount · {data?.location ?? 'East Field House'}
+              Live headcount · {data.location}
             </Text>
           </View>
 
-          {loading && !data ? (
+          {loading && data.count === 0 && data.source === 'fallback' && !data.timestamp ? (
             <View style={{ alignItems: 'center', gap: Space.md }}>
               <ActivityIndicator color={t.primary} />
               <Text style={{ color: t.textSecondary, fontSize: Size.sm }}>Loading live headcount…</Text>
             </View>
-          ) : data ? (
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ color: t.text, fontSize: Size['5xl'], fontWeight: '800', letterSpacing: -1 }}>
-                {data.count}
-              </Text>
-              <Text
-                style={{
-                  color: t.textSecondary,
-                  fontSize: Size.xs,
-                  letterSpacing: 1.5,
-                  textTransform: 'uppercase',
-                  fontWeight: '700',
-                  marginTop: -4,
-                }}
-              >
-                people here now
-              </Text>
-              <Text style={{ color: t.textMuted, fontSize: Size.xs, marginTop: 8 }}>
+          ) : (
+            <View style={{ gap: Space.sm }}>
+              <OccupancyBar pct={occupancyPct} />
+              <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center' }}>
                 {formatTimestamp(data.timestamp)} · refreshes every minute
               </Text>
+              <Text style={{ color: t.textSecondary, fontSize: Size.sm, textAlign: 'center' }}>
+                {data.count} people here now
+              </Text>
               {refreshing ? (
-                <Text style={{ color: t.textMuted, fontSize: Size.xs, marginTop: 8 }}>Refreshing…</Text>
+                <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center' }}>Refreshing…</Text>
               ) : null}
               {error ? (
-                <Text style={{ color: t.warning, fontSize: Size.xs, marginTop: 8, textAlign: 'center' }}>
-                  {error}
+                <Text style={{ color: t.warning, fontSize: Size.xs, textAlign: 'center' }}>
+                  API connection failed
                 </Text>
               ) : null}
-            </View>
-          ) : (
-            <View style={{ alignItems: 'center', gap: Space.sm }}>
-              <Text style={{ color: t.warning, fontSize: Size.sm, fontWeight: '700', textAlign: 'center' }}>
-                {error ?? 'Live headcount is currently unavailable.'}
-              </Text>
-              <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center' }}>
-                Configure the backend URL, then pull to retry from this screen.
-              </Text>
             </View>
           )}
 
@@ -104,7 +89,67 @@ export default function HomeScreen() {
             <Button title="See machines" onPress={() => router.push('/(tabs)/search')} />
           </View>
         </Card>
-      </View>
+      </AnimatedSection>
+
+      <AnimatedSection delay={120} style={{ paddingHorizontal: Space.lg, marginBottom: Space.lg }}>
+        <SectionLabel>Popular Times · Today</SectionLabel>
+        <Card>
+          <PopularTimes data={HOURLY} currentHour={hour} />
+          <Text style={{ color: t.textMuted, fontSize: Size.xs, marginTop: Space.md, textAlign: 'center' }}>
+            Typically busy between 5–7pm
+          </Text>
+        </Card>
+      </AnimatedSection>
+
+      <AnimatedSection delay={120} style={{ paddingHorizontal: Space.lg, marginBottom: Space.lg }}>
+        <SectionLabel>By Zone</SectionLabel>
+        <View style={{ gap: Space.sm }}>
+          {ZONES.map((zone) => {
+            const zonePct = Math.round((zone.count / zone.capacity) * 100);
+            return (
+              <Pressable key={zone.id} onPress={() => router.push('/(tabs)/search')}>
+                <Card style={{ flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: withAlpha(t.primary, 0.15),
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={{ color: t.primary, fontSize: Size.lg, fontWeight: '800' }}>{zone.id}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{zone.name}</Text>
+                    <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>
+                      {zone.count}/{zone.capacity} people · {zonePct}%
+                    </Text>
+                  </View>
+                  <View
+                    style={{
+                      width: 80,
+                      height: 6,
+                      borderRadius: 6,
+                      backgroundColor: withAlpha(t.text, 0.08),
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: `${zonePct}%`,
+                        height: '100%',
+                        backgroundColor: zonePct > 80 ? t.warning : t.primary,
+                      }}
+                    />
+                  </View>
+                </Card>
+              </Pressable>
+            );
+          })}
+        </View>
+      </AnimatedSection>
     </ScrollView>
   );
 }

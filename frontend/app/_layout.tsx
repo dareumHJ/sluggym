@@ -42,7 +42,7 @@ function RootStack() {
 
   return (
     <>
-      <StatusBar style={tweaks.mode === 'dark' ? 'light' : 'dark'} />
+      <StatusBar hidden style={tweaks.mode === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
           headerShown: false,

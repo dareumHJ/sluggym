@@ -27,7 +27,7 @@ export default function ProfileScreen() {
   ]);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: Space.lg, paddingBottom: 120 }}>
+      <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: Space.lg, paddingBottom: 120 }}>
       {/* Identity */}
       <View style={{ alignItems: 'center', marginVertical: Space.lg }}>
         <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: t.primary, alignItems: 'center', justifyContent: 'center', marginBottom: Space.md }}>
@@ -82,6 +82,6 @@ export default function ProfileScreen() {
       <View style={{ marginTop: Space.xl }}>
         <Button title="Sign out" variant="danger" size="lg" onPress={confirmSignOut} />
       </View>
-    </ScrollView>
+      </ScrollView>
   );
 }

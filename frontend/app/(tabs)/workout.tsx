@@ -60,7 +60,7 @@ export default function WorkoutScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <View style={{ flex: 1, backgroundColor: t.bg }}>
       {/* Header */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Space.lg, paddingTop: Space.lg, paddingBottom: Space.sm }}>
         <View>
@@ -137,7 +137,7 @@ export default function WorkoutScreen() {
 
         <Button title="+ Add exercise" variant="secondary" size="lg" onPress={() => router.push('/(tabs)/search')} />
       </ScrollView>
-    </View>
+      </View>
   );
 }
 

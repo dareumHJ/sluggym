@@ -1,43 +1,29 @@
 import { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Colors, Spacing, BorderRadius, FontSize } from '../../src/constants/theme';
-import { validateEmail, validatePassword } from '../../src/lib/validation';
-import { useFormField } from '../../src/hooks/useFormField';
 import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function LoginScreen() {
-  const email = useFormField(validateEmail);
-  const password = useFormField(validatePassword);
-  const { signIn } = useAuth();
+  const { signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const handleLogin = async () => {
+  const handleGoogleSignIn = async () => {
     setFormError('');
-
-    // Validate all fields
-    const emailValid = email.validate();
-    const passwordValid = password.validate();
-
-    if (!emailValid || !passwordValid) {
-      return;
-    }
-
     setLoading(true);
     try {
-      await signIn(email.value.trim(), password.value);
+      await signInWithGoogle();
       router.replace('/(tabs)');
     } catch (error: any) {
-      setFormError(error?.message ?? 'Sign in failed. Please try again.');
+      setFormError(error?.message ?? 'Google sign in failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -54,65 +40,31 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.form}>
-        {/* General form error */}
         {formError ? (
           <View style={styles.formErrorContainer}>
             <Text style={styles.formErrorText}>{formError}</Text>
           </View>
         ) : null}
 
-        {/* Email field */}
-        <View>
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={[styles.input, email.error ? styles.inputError : null]}
-            placeholder="your@ucsc.edu"
-            placeholderTextColor={Colors.textMuted}
-            value={email.value}
-            onChangeText={email.setValue}
-            onBlur={email.onBlur}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoComplete="email"
-          />
-          {email.error ? (
-            <Text style={styles.errorText}>{email.error}</Text>
-          ) : null}
-        </View>
-
-        {/* Password field */}
-        <View>
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={[styles.input, password.error ? styles.inputError : null]}
-            placeholder="Enter your password"
-            placeholderTextColor={Colors.textMuted}
-            value={password.value}
-            onChangeText={password.setValue}
-            onBlur={password.onBlur}
-            secureTextEntry
-            autoComplete="password"
-          />
-          {password.error ? (
-            <Text style={styles.errorText}>{password.error}</Text>
-          ) : null}
-        </View>
+        <Text style={styles.infoText}>
+          Sign in with your UCSC Google account to access your workouts and live gym data.
+        </Text>
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleLogin}
+          onPress={handleGoogleSignIn}
           disabled={loading}
           activeOpacity={0.8}
         >
           <Text style={styles.buttonText}>
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Opening Google…' : 'Continue with Google'}
           </Text>
         </TouchableOpacity>
 
         <Link href="/(auth)/signup" asChild>
           <TouchableOpacity style={styles.linkButton}>
             <Text style={styles.linkText}>
-              Don&apos;t have an account? <Text style={styles.linkHighlight}>Sign Up</Text>
+              Need an account? <Text style={styles.linkHighlight}>Create it with Google</Text>
             </Text>
           </TouchableOpacity>
         </Link>
@@ -158,30 +110,11 @@ const styles = StyleSheet.create({
     color: Colors.error,
     textAlign: 'center',
   },
-  label: {
-    fontSize: FontSize.sm,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Spacing.xs,
-  },
-  input: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+  infoText: {
     fontSize: FontSize.md,
-    color: Colors.text,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  inputError: {
-    borderColor: Colors.error,
-  },
-  errorText: {
-    fontSize: FontSize.xs,
-    color: Colors.error,
-    marginTop: Spacing.xs,
-    marginLeft: Spacing.xs,
+    color: Colors.textSecondary,
+    lineHeight: 24,
+    textAlign: 'center',
   },
   button: {
     backgroundColor: Colors.primary,

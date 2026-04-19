@@ -1,37 +1,15 @@
-// app/(tabs)/search.tsx — live equipment list with search + basic type filter
-import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TextInput, View } from 'react-native';
+// app/(tabs)/search.tsx — live equipment list with search + basic category filter
+import React, { useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useTheme, Space, Radius, Size } from '../../src/constants/theme';
-import { Button, Card, Chip } from '../../src/components/primitives';
+import { Button, Card } from '../../src/components/primitives';
 import { useEquipment } from '../../src/hooks/useEquipment';
 
 export default function SearchScreen() {
   const t = useTheme();
-  const { equipment, error, loading, reload } = useEquipment();
   const [q, setQ] = useState('');
   const [category, setCategory] = useState('All');
-
-  const categories = useMemo(
-    () => ['All', ...Array.from(new Set(equipment.map((item) => item.category).filter(Boolean))).sort()],
-    [equipment],
-  );
-
-  const filtered = useMemo(
-    () =>
-      equipment.filter((item) => {
-        if (category !== 'All' && item.category !== category) return false;
-
-        if (!q) return true;
-
-        const normalizedQuery = q.trim().toLowerCase();
-        return (
-          item.name.toLowerCase().includes(normalizedQuery) ||
-          item.location?.toLowerCase().includes(normalizedQuery) ||
-          item.category.toLowerCase().includes(normalizedQuery)
-        );
-      }),
-    [category, equipment, q],
-  );
+  const { equipment, filteredEquipment, categories, error, loading, refresh } = useEquipment(q, category);
 
   const renderBody = () => {
     if (loading) {
@@ -50,7 +28,7 @@ export default function SearchScreen() {
           <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center' }}>
             The catalog only uses the live Supabase dataset now.
           </Text>
-          <Button title="Retry" variant="secondary" onPress={() => void reload()} />
+          <Button title="Retry" variant="secondary" onPress={() => void refresh()} />
         </Card>
       );
     }
@@ -64,12 +42,12 @@ export default function SearchScreen() {
           <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center' }}>
             Search is wired to the live catalog, but the configured dataset is currently empty.
           </Text>
-          <Button title="Reload" variant="secondary" onPress={() => void reload()} />
+          <Button title="Reload" variant="secondary" onPress={() => void refresh()} />
         </Card>
       );
     }
 
-    if (filtered.length === 0) {
+    if (filteredEquipment.length === 0) {
       return (
         <Text style={{ color: t.textMuted, textAlign: 'center', marginTop: Space['3xl'] }}>
           No live machines match those filters.
@@ -77,13 +55,13 @@ export default function SearchScreen() {
       );
     }
 
-    return filtered.map((item) => (
+    return filteredEquipment.map((item) => (
       <Card key={item.id} style={{ gap: Space.xs }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.md }}>
           <View style={{ flex: 1 }}>
             <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{item.name}</Text>
             <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>
-              Type: {item.category}
+              Category: {item.category}
               {item.location ? ` · ${item.location}` : ''}
             </Text>
           </View>
@@ -94,6 +72,9 @@ export default function SearchScreen() {
             </Text>
           </View>
         </View>
+        {item.description ? (
+          <Text style={{ color: t.textMuted, fontSize: 10, lineHeight: 16 }}>{item.description}</Text>
+        ) : null}
         <Text style={{ color: t.textMuted, fontSize: 10, letterSpacing: 0.4 }}>
           Live detail view coming soon — list search/filter is live now.
         </Text>
@@ -102,9 +83,9 @@ export default function SearchScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <View style={{ paddingHorizontal: Space.lg, paddingTop: Space.lg, paddingBottom: Space.sm }}>
-        <Text style={{ color: t.text, fontSize: Size['2xl'], fontWeight: '800', marginBottom: Space.md }}>Find equipment</Text>
+      <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <View style={{ paddingHorizontal: Space.lg, paddingTop: Space['4xl'], paddingBottom: Space.sm }}>
+        <Text style={{ color: t.text, fontSize: Size['2xl'], fontWeight: '800', marginBottom: Space.md }}>Search Equipment</Text>
         <View
           style={{
             flexDirection: 'row',
@@ -120,7 +101,7 @@ export default function SearchScreen() {
           <TextInput
             value={q}
             onChangeText={setQ}
-            placeholder="Bench, lat pull, cardio…"
+            placeholder="Bench, rower, cardio…"
             placeholderTextColor={t.textMuted}
             style={{ flex: 1, color: t.text, paddingVertical: 12, fontSize: Size.md }}
           />
@@ -132,23 +113,57 @@ export default function SearchScreen() {
         </View>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: Space.lg, gap: 8, paddingVertical: Space.sm }}
-      >
-        {categories.map((value) => (
-          <Chip key={value} label={value === 'All' ? 'All types' : value} active={category === value} onPress={() => setCategory(value)} />
-        ))}
-      </ScrollView>
+      <View style={{ minHeight: 56, justifyContent: 'center' }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ minHeight: 56, maxHeight: 56 }}
+          contentContainerStyle={{ paddingHorizontal: Space.lg, gap: 8, paddingVertical: Space.sm, alignItems: 'center' }}
+        >
+        {categories.map((value) => {
+          const active = category === value;
+          return (
+            <Pressable
+              key={value}
+              onPress={() => setCategory(value)}
+              style={{
+                minHeight: 38,
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                borderRadius: Radius.full,
+                backgroundColor: active ? t.primary : t.surface2,
+                borderWidth: 1,
+                borderColor: active ? t.primary : t.borderLight,
+                justifyContent: 'center',
+                alignItems: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Text
+                numberOfLines={1}
+                style={{
+                  color: active ? t.onPrimary : t.text,
+                  fontSize: Size.sm,
+                  fontWeight: '700',
+                  lineHeight: 16,
+                  includeFontPadding: false,
+                }}
+              >
+                {value === 'All' ? 'All categories' : value}
+              </Text>
+            </Pressable>
+          );
+        })}
+        </ScrollView>
+      </View>
 
       <Text style={{ color: t.textSecondary, fontSize: Size.xs, paddingHorizontal: Space.lg, marginTop: 4, marginBottom: Space.sm }}>
-        {filtered.length} visible · {equipment.length} live rows
+        {filteredEquipment.length} visible · {equipment.length} live rows
       </Text>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: Space.lg, paddingBottom: 120, gap: Space.sm }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: Space.lg, paddingBottom: 120, gap: Space.sm, flexGrow: 1 }}>
         {renderBody()}
       </ScrollView>
-    </View>
+      </View>
   );
 }
