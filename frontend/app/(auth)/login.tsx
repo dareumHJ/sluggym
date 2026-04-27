@@ -1,26 +1,31 @@
 import { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import { Colors, Spacing, BorderRadius, FontSize } from '../../src/constants/theme';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const { signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  const handleLogin = async () => {
+  const handleGoogleSignIn = async () => {
+    setFormError('');
     setLoading(true);
-    // TODO: Implement Supabase auth
-    router.replace('/(tabs)');
-    setLoading(false);
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      setFormError(error?.message ?? 'Google sign in failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -34,41 +39,31 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.form}>
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="your@ucsc.edu"
-          placeholderTextColor={Colors.textMuted}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
+        {formError ? (
+          <View style={styles.formErrorContainer}>
+            <Text style={styles.formErrorText}>{formError}</Text>
+          </View>
+        ) : null}
 
-        <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your password"
-          placeholderTextColor={Colors.textMuted}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        <Text style={styles.infoText}>
+          Sign in with your UCSC Google account to access your workouts and live gym data.
+        </Text>
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleLogin}
+          onPress={handleGoogleSignIn}
           disabled={loading}
+          activeOpacity={0.8}
         >
           <Text style={styles.buttonText}>
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Opening Google…' : 'Continue with Google'}
           </Text>
         </TouchableOpacity>
 
         <Link href="/(auth)/signup" asChild>
           <TouchableOpacity style={styles.linkButton}>
             <Text style={styles.linkText}>
-              Don't have an account? <Text style={styles.linkHighlight}>Sign Up</Text>
+              Need an account? <Text style={styles.linkHighlight}>Create it with Google</Text>
             </Text>
           </TouchableOpacity>
         </Link>
@@ -101,21 +96,24 @@ const styles = StyleSheet.create({
   form: {
     gap: Spacing.md,
   },
-  label: {
-    fontSize: FontSize.sm,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Spacing.xs,
-  },
-  input: {
-    backgroundColor: Colors.surface,
+  formErrorContainer: {
+    backgroundColor: 'rgba(255, 82, 82, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 82, 82, 0.3)',
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+  },
+  formErrorText: {
+    fontSize: FontSize.sm,
+    color: Colors.error,
+    textAlign: 'center',
+  },
+  infoText: {
     fontSize: FontSize.md,
-    color: Colors.text,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    color: Colors.textSecondary,
+    lineHeight: 24,
+    textAlign: 'center',
   },
   button: {
     backgroundColor: Colors.primary,
