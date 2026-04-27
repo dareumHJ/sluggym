@@ -7,9 +7,11 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Colors, Spacing, BorderRadius, FontSize } from '../../src/constants/theme';
+import { supabase } from '../../src/lib/supabase';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -17,10 +19,24 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Missing info', 'Please enter both email and password.');
+      return;
+    }
+
     setLoading(true);
-    // TODO: Implement Supabase auth
-    router.replace('/(tabs)');
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
     setLoading(false);
+
+    if (error) {
+      Alert.alert('Sign in failed', error.message);
+      return;
+    }
+
+    router.replace('/(tabs)');
   };
 
   return (

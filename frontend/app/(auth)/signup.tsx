@@ -7,22 +7,53 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Colors, Spacing, BorderRadius, FontSize } from '../../src/constants/theme';
+import { supabase } from '../../src/lib/supabase';
 
 export default function SignUpScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-
+  
   const handleSignUp = async () => {
+    if (!email || !password || !name) {
+      Alert.alert('Missing info', 'Please fill in all fields.');
+      return;
+    }
+    if (password.length < 6) {
+      Alert.alert('Weak password', 'Password must be at least 6 characters.');
+      return;
+    }
+
     setLoading(true);
-    // TODO: Implement Supabase signup
-    router.replace('/(auth)/login');
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: { name },
+      },
+    });
     setLoading(false);
-  };
+
+    if (error) {
+      Alert.alert('Sign up failed', error.message);
+      return;
+    }
+
+    if (data.session) {
+      router.replace('/(tabs)');
+    } else {
+      Alert.alert(
+        'Check your email',
+        'We sent you a confirmation link. Tap it to finish creating your account, then come back and sign in.',
+      );
+      router.replace('/(auth)/login');
+    }
+  };  
 
   return (
     <KeyboardAvoidingView
