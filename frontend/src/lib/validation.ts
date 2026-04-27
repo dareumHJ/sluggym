@@ -88,3 +88,77 @@ export function validateName(name: string): ValidationResult {
 export function isFormValid(results: ValidationResult[]): boolean {
   return results.every((r) => r.isValid);
 }
+
+function normalizeNumericInput(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return '';
+  return String(value).trim();
+}
+
+/**
+ * Validate a workout weight input.
+ * Sprint 2 client-side rule: required numeric value, no negatives, typo guard at 1000.
+ */
+export function validateWorkoutWeight(value: string | number | null | undefined): ValidationResult {
+  const text = normalizeNumericInput(value);
+
+  if (!text) {
+    return { isValid: false, message: 'Weight is required' };
+  }
+
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed)) {
+    return { isValid: false, message: 'Weight must be a number' };
+  }
+
+  if (parsed < 0) {
+    return { isValid: false, message: 'Weight cannot be negative' };
+  }
+
+  if (parsed > 1000) {
+    return { isValid: false, message: 'Weight looks too high' };
+  }
+
+  return { isValid: true, message: '' };
+}
+
+/**
+ * Validate a reps input.
+ * Sprint 2 client-side rule: required positive integer, typo guard at 500.
+ */
+export function validateWorkoutReps(value: string | number | null | undefined): ValidationResult {
+  const text = normalizeNumericInput(value);
+
+  if (!text) {
+    return { isValid: false, message: 'Reps are required' };
+  }
+
+  const parsed = Number(text);
+  if (!Number.isInteger(parsed)) {
+    return { isValid: false, message: 'Reps must be a whole number' };
+  }
+
+  if (parsed < 1) {
+    return { isValid: false, message: 'Reps must be at least 1' };
+  }
+
+  if (parsed > 500) {
+    return { isValid: false, message: 'Reps look too high' };
+  }
+
+  return { isValid: true, message: '' };
+}
+
+/**
+ * Validate set count for a workout exercise.
+ */
+export function validateWorkoutSetCount(count: number): ValidationResult {
+  if (!Number.isInteger(count) || count < 1) {
+    return { isValid: false, message: 'Add at least one set' };
+  }
+
+  if (count > 50) {
+    return { isValid: false, message: 'Set count looks too high' };
+  }
+
+  return { isValid: true, message: '' };
+}

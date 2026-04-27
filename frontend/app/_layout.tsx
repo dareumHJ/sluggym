@@ -52,6 +52,7 @@ function RootStack() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="equipment/[id]" options={{ presentation: 'card' }} />
+        <Stack.Screen name="workout-summary" options={{ presentation: 'card' }} />
       </Stack>
     </>
   );

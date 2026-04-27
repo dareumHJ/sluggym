@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 export interface EquipmentListItem {
@@ -24,7 +25,9 @@ interface EquipmentRow {
   name: string;
   category: string;
   location: string | null;
-  quantity: number | null;
+  quantity?: number | null;
+  total_count?: number | null;
+  available_count?: number | null;
   description?: string | null;
 }
 
@@ -34,7 +37,7 @@ function normalizeEquipmentRow(row: EquipmentRow): EquipmentListItem {
     name: row.name,
     category: row.category,
     location: row.location,
-    quantity: row.quantity ?? 0,
+    quantity: row.available_count ?? row.quantity ?? row.total_count ?? 0,
     description: row.description ?? null,
   };
 }
@@ -52,15 +55,14 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
     }
 
     const { data, error: fetchError } = await supabase
-      .from('gym-equipment')
-      .select('id, name, category, location, quantity, description')
+      .from('gym_equipment')
+      .select('id, name, category, location, total_count, available_count, description')
       .order('category', { ascending: true })
       .order('name', { ascending: true });
 
     if (!isMountedRef.current) return;
 
     if (fetchError) {
-      setEquipment([]);
       setError(fetchError.message);
       setLoading(false);
       return;
@@ -74,8 +76,32 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
     isMountedRef.current = true;
     void refresh();
 
+    const channel = supabase
+      .channel('gym-equipment-ui-refresh')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'gym_equipment' },
+        () => {
+          void refresh();
+        },
+      )
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setError('Realtime connection interrupted. Pulling latest equipment data…');
+          void refresh();
+        }
+      });
+
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        void refresh();
+      }
+    });
+
     return () => {
       isMountedRef.current = false;
+      appStateSubscription.remove();
+      void supabase.removeChannel(channel);
     };
   }, [refresh]);
 
