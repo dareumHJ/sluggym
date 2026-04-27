@@ -3,7 +3,7 @@ import React from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme, Space, Size, withAlpha } from '../../src/constants/theme';
-import { Button, Card, SectionLabel } from '../../src/components/primitives';
+import { Card, SectionLabel } from '../../src/components/primitives';
 import { OccupancyBar, PopularTimes } from '../../src/components/Occupancy';
 import { AnimatedSection } from '../../src/components/AnimatedSection';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -22,11 +22,11 @@ function formatTimestamp(timestamp?: string | null) {
 export default function HomeScreen() {
   const t = useTheme();
   const { user } = useAuth();
-  const { data, error, loading, refreshing, reload } = useLiveOccupancy();
+  const { data, error, loading, refreshing } = useLiveOccupancy();
   const displayName = user?.name ?? user?.email?.split('@')[0] ?? 'Athlete';
   const firstName = displayName.split(' ')[0];
   const hour = new Date().getHours();
-  const occupancyPct = Math.max(0, Math.min(100, data.count));
+  const occupancyCapacity = 150;
 
   return (
       <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ paddingBottom: 120 }}>
@@ -66,12 +66,12 @@ export default function HomeScreen() {
             </View>
           ) : (
             <View style={{ gap: Space.sm }}>
-              <OccupancyBar pct={occupancyPct} />
+              <OccupancyBar count={data.count} capacity={occupancyCapacity} />
               <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center' }}>
                 {formatTimestamp(data.timestamp)} · refreshes every minute
               </Text>
               <Text style={{ color: t.textSecondary, fontSize: Size.sm, textAlign: 'center' }}>
-                {data.count} people here now
+                {data.count}/{occupancyCapacity} people here now
               </Text>
               {refreshing ? (
                 <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center' }}>Refreshing…</Text>
@@ -84,10 +84,6 @@ export default function HomeScreen() {
             </View>
           )}
 
-          <View style={{ flexDirection: 'row', gap: Space.sm, marginTop: Space.lg }}>
-            <Button title="Refresh" variant="secondary" onPress={() => void reload()} />
-            <Button title="See machines" onPress={() => router.push('/(tabs)/search')} />
-          </View>
         </Card>
       </AnimatedSection>
 

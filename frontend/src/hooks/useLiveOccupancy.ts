@@ -3,7 +3,13 @@ import { AppState } from 'react-native';
 import type { LiveOccupancy } from '../types';
 
 const POLL_INTERVAL_MS = 60_000;
-const apiBaseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').replace(/\/$/, '');
+const DEFAULT_API_BASE_URL = 'https://sluggym-backend.onrender.com';
+const apiBaseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/$/, '');
+
+function normalizeTimestamp(timestamp?: string | null) {
+  if (!timestamp) return null;
+  return timestamp.includes('T') ? timestamp : timestamp.replace(' ', 'T');
+}
 
 type UseLiveOccupancyState = {
   data: LiveOccupancy;
@@ -14,7 +20,7 @@ type UseLiveOccupancyState = {
 
 const fallbackData: LiveOccupancy = {
   count: 0,
-  location: 'East Field House',
+  location: 'East Gym',
   source: 'fallback',
   timestamp: null,
   message: 'API connection failed',
@@ -60,13 +66,18 @@ export function useLiveOccupancy() {
       }
 
       const payload = (await response.json()) as LiveOccupancy;
-      if (payload.source !== 'api' || typeof payload.count !== 'number') {
+      const normalizedPayload: LiveOccupancy = {
+        ...payload,
+        timestamp: normalizeTimestamp(payload.timestamp),
+      };
+
+      if (normalizedPayload.source !== 'api' || typeof normalizedPayload.count !== 'number') {
         setState({
           data: {
             ...fallbackData,
-            location: payload.location ?? fallbackData.location,
-            timestamp: payload.timestamp ?? null,
-            message: payload.message ?? fallbackData.message,
+            location: normalizedPayload.location ?? fallbackData.location,
+            timestamp: normalizedPayload.timestamp ?? null,
+            message: normalizedPayload.message ?? fallbackData.message,
           },
           error: 'API connection failed',
           loading: false,
@@ -75,7 +86,7 @@ export function useLiveOccupancy() {
         return;
       }
 
-      setState({ data: payload, error: null, loading: false, refreshing: false });
+      setState({ data: normalizedPayload, error: null, loading: false, refreshing: false });
     } catch {
       setState((prev) => ({
         data: {

@@ -16,7 +16,14 @@ type Ctx = {
 };
 
 const AuthContext = createContext<Ctx | undefined>(undefined);
-const redirectTo = makeRedirectUri();
+const redirectTo = makeRedirectUri({
+  scheme: 'sluggym',
+  path: 'auth/callback',
+});
+
+if (__DEV__) {
+  console.log('[Auth] redirectTo', redirectTo);
+}
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -118,6 +125,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (__DEV__) {
+      console.log('[Auth] signInWithGoogle using redirect', redirectTo);
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -133,7 +144,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
     if (!data?.url) throw new Error('Missing Google authorization URL.');
 
+    if (__DEV__) {
+      console.log('[Auth] provider URL', data.url);
+    }
+
     const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+
+    if (__DEV__) {
+      console.log('[Auth] auth result', result);
+    }
 
     if (result.type === 'success' && result.url) {
       await createSessionFromUrl(result.url);

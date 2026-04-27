@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import { Colors, Spacing, BorderRadius, FontSize } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 
@@ -21,7 +21,6 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      router.replace('/(tabs)');
     } catch (error: any) {
       setFormError(error?.message ?? 'Google sign in failed. Please try again.');
     } finally {

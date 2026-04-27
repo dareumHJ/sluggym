@@ -15,7 +15,7 @@ function Gate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
     if (!user && !inAuth) router.replace('/(auth)/login');
-    else if (user && inAuth) router.replace('/(tabs)');
+    else if (user && inAuth) router.replace('/');
   }, [inAuth, loading, user]);
 
   if (loading || (!user && !inAuth) || (user && inAuth)) {

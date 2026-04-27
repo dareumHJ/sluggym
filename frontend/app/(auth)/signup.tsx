@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, KeyboardAvoidingView, Platform, ScrollView, Pressable } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import { useTheme, Space, Size } from '../../src/constants/theme';
 import { Button } from '../../src/components/primitives';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -16,7 +16,6 @@ export default function SignupScreen() {
     setLoading(true);
     try {
       await signInWithGoogle();
-      router.replace('/(tabs)');
     } catch (error: any) {
       setErrorMessage(error?.message ?? 'Google sign up failed. Try again.');
     } finally {

@@ -43,20 +43,27 @@ export function OccupancyDots({ pct }: { pct: number }) {
   );
 }
 
-export function OccupancyBar({ pct }: { pct: number }) {
+export function OccupancyBar({ count, capacity }: { count: number; capacity: number }) {
   const t = useTheme();
+  const pct = Math.max(0, Math.min(100, Math.round((count / capacity) * 100)));
+  const status = pct >= 85 ? 'Busy' : pct >= 60 ? 'Moderate' : 'Open';
+  const statusColor = pct >= 85 ? t.warning : pct >= 60 ? t.success : t.primary;
+
   return (
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: Space.sm }}>
-        <Text style={{ color: t.text, fontSize: Size['4xl'], fontWeight: '800', letterSpacing: -1 }}>{pct}<Text style={{ fontSize: Size.lg, color: t.textSecondary }}>% full</Text></Text>
-        <Text style={{ color: t.success, fontSize: Size.sm, fontWeight: '600' }}>Moderate</Text>
+        <Text style={{ color: t.text, fontSize: Size['4xl'], fontWeight: '800', letterSpacing: -1 }}>
+          {count}
+          <Text style={{ fontSize: Size.lg, color: t.textSecondary }}>/150</Text>
+        </Text>
+        <Text style={{ color: statusColor, fontSize: Size.sm, fontWeight: '600' }}>{status}</Text>
       </View>
       <View style={{ height: 12, borderRadius: 12, backgroundColor: withAlpha(t.text, 0.06), overflow: 'hidden' }}>
         <View style={{ width: `${pct}%`, height: '100%', backgroundColor: t.primary, borderRadius: 12 }} />
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-        <Text style={{ color: t.textMuted, fontSize: 10 }}>EMPTY</Text>
-        <Text style={{ color: t.textMuted, fontSize: 10 }}>PACKED</Text>
+        <Text style={{ color: t.textMuted, fontSize: 10 }}>0</Text>
+        <Text style={{ color: t.textMuted, fontSize: 10 }}>{capacity}</Text>
       </View>
     </View>
   );
