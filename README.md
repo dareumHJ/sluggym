@@ -24,5 +24,6 @@ main
     ├── feature/db-schema           (Joon/Heidi)
     ├── feature/gym-headcount       (Heidi)
     ├── feature/equipment-catalog   (Joon/Jeongmin)
+    ├── feature/database-api        (Joon)
     ├── feature/database_files      (Joon)
     └── feature/workouts-hook       (Heidi)
