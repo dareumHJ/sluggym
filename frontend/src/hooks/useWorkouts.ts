@@ -1,264 +1,262 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
 
-export type WorkoutSession = {
+/**
+ * A workout session record from the `workouts` table.
+ * Represents a single workout the user started, optionally ended.
+ */
+export interface Workout {
   id: string;
+  user_id: string;
   name: string;
-  startedAt: string;
-  endedAt: string | null;
-  durationMin: number | null;
-  exerciseCount: number;
-  totalSets: number;
-  totalVolumeKg: number;
-  source: 'supabase' | 'local';
-};
-
-type WorkoutRow = {
-  id: string | number;
-  name: string | null;
-  started_at: string | null;
+  target_muscle: string[];
+  /** ISO timestamp string when the workout was started. */
+  started_at: string;
+  /** ISO timestamp string when the workout ended, or null if still active. */
   ended_at: string | null;
-};
-
-type WorkoutExerciseRow = {
-  id: string | number;
-  workout_id: string | number;
-};
-
-type ExerciseSetRow = {
-  workout_exercise_id: string | number;
-  weight: number | null;
-  reps: number | null;
-  is_completed: boolean | null;
-};
-
-type WorkoutStats = {
-  exerciseCount: number;
-  totalSets: number;
-  totalVolumeKg: number;
-};
-
-const emptyStats: WorkoutStats = {
-  exerciseCount: 0,
-  totalSets: 0,
-  totalVolumeKg: 0,
-};
-
-function getDurationMin(startedAt: string | null, endedAt: string | null) {
-  if (!startedAt || !endedAt) return null;
-
-  const start = new Date(startedAt).getTime();
-  const end = new Date(endedAt).getTime();
-  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return null;
-
-  return Math.max(1, Math.round((end - start) / 60_000));
+  created_at: string;
 }
 
-function mapWorkoutRow(row: WorkoutRow, stats: WorkoutStats = emptyStats): WorkoutSession {
+/**
+ * Input for creating a new workout session.
+ */
+interface CreateWorkoutInput {
+  /** Display name for the session, e.g. "Leg day" or "Morning push". */
+  name: string;
+  /** Target muscle groups for the session, e.g. ['chest', 'triceps']. */
+  target_muscle: string[];
+}
+
+interface UseWorkoutsReturn {
+  /** All workouts for the current user, newest first. */
+  workouts: Workout[];
+  /** The currently active workout (ended_at is null), or null if none. */
+  activeWorkout: Workout | null;
+  /** True while the initial fetch or a refresh is in progress. */
+  loading: boolean;
+  /** Error message from the most recent failed operation, or null. */
+  error: string | null;
+  /** Manually re-fetch the workouts list from the database. */
+  refresh: () => Promise<void>;
+  /** Create and start a new workout session for the current user. */
+  createWorkout: (input: CreateWorkoutInput) => Promise<Workout>;
+  /** End an active workout by setting its ended_at timestamp. */
+  endWorkout: (workoutId: string) => Promise<Workout>;
+  /** Fetch a single workout by id (does not affect local state). */
+  getWorkout: (workoutId: string) => Promise<Workout>;
+}
+
+interface WorkoutRow {
+  id: string;
+  user_id: string;
+  name: string;
+  target_muscle: string[] | null;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+}
+
+function normalizeWorkoutRow(row: WorkoutRow): Workout {
   return {
     id: String(row.id),
-    name: row.name ?? 'Workout',
-    startedAt: row.started_at ?? new Date().toISOString(),
-    endedAt: row.ended_at ?? null,
-    durationMin: getDurationMin(row.started_at, row.ended_at),
-    exerciseCount: stats.exerciseCount,
-    totalSets: stats.totalSets,
-    totalVolumeKg: stats.totalVolumeKg,
-    source: 'supabase',
+    user_id: row.user_id,
+    name: row.name,
+    target_muscle: row.target_muscle ?? [],
+    started_at: row.started_at,
+    ended_at: row.ended_at,
+    created_at: row.created_at,
   };
 }
 
-function localWorkout(name: string): WorkoutSession {
-  return {
-    id: `local-${Date.now()}`,
-    name,
-    startedAt: new Date().toISOString(),
-    endedAt: null,
-    durationMin: null,
-    exerciseCount: 0,
-    totalSets: 0,
-    totalVolumeKg: 0,
-    source: 'local',
-  };
-}
-
-async function loadWorkoutStats(workoutIds: string[]) {
-  const statsByWorkout = new Map<string, WorkoutStats>();
-  workoutIds.forEach((id) => statsByWorkout.set(id, { ...emptyStats }));
-
-  if (workoutIds.length === 0) return statsByWorkout;
-
-  const { data: workoutExercises, error: exercisesError } = await supabase
-    .from('workout_exercises')
-    .select('id, workout_id')
-    .in('workout_id', workoutIds);
-
-  if (exercisesError) throw exercisesError;
-
-  const exerciseRows = (workoutExercises ?? []) as WorkoutExerciseRow[];
-  const workoutByExercise = new Map<string, string>();
-
-  for (const row of exerciseRows) {
-    const workoutId = String(row.workout_id);
-    const exerciseId = String(row.id);
-    workoutByExercise.set(exerciseId, workoutId);
-
-    const current = statsByWorkout.get(workoutId) ?? { ...emptyStats };
-    statsByWorkout.set(workoutId, { ...current, exerciseCount: current.exerciseCount + 1 });
-  }
-
-  const workoutExerciseIds = Array.from(workoutByExercise.keys());
-  if (workoutExerciseIds.length === 0) return statsByWorkout;
-
-  const { data: exerciseSets, error: setsError } = await supabase
-    .from('exercise_sets')
-    .select('workout_exercise_id, weight, reps, is_completed')
-    .in('workout_exercise_id', workoutExerciseIds)
-    .eq('is_completed', true);
-
-  if (setsError) throw setsError;
-
-  for (const set of (exerciseSets ?? []) as ExerciseSetRow[]) {
-    const workoutId = workoutByExercise.get(String(set.workout_exercise_id));
-    if (!workoutId) continue;
-
-    const current = statsByWorkout.get(workoutId) ?? { ...emptyStats };
-    const weight = set.weight ?? 0;
-    const reps = set.reps ?? 0;
-    statsByWorkout.set(workoutId, {
-      ...current,
-      totalSets: current.totalSets + 1,
-      totalVolumeKg: current.totalVolumeKg + weight * reps,
-    });
-  }
-
-  return statsByWorkout;
-}
-
-export function useWorkouts() {
-  const { user } = useAuth();
-  const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
-  const [history, setHistory] = useState<WorkoutSession[]>([]);
-  const [loading, setLoading] = useState(false);
+/**
+ * Hook for managing workout sessions for the current authenticated user.
+ *
+ * Automatically fetches the user's workouts on mount, sorted newest first.
+ * Provides methods to create, end, and read individual sessions, plus a
+ * convenience `activeWorkout` accessor for the in-progress session if any.
+ *
+ * Requires the user to be signed in via Supabase auth — operations will
+ * fail with a "Not authenticated" error otherwise.
+ *
+ * @example
+ * function MyComponent() {
+ *   const { workouts, activeWorkout, loading, createWorkout, endWorkout } = useWorkouts();
+ *
+ *   if (loading) return <Text>Loading...</Text>;
+ *
+ *   return (
+ *     <View>
+ *       <Button
+ *         title="Start workout"
+ *         onPress={() => createWorkout({ name: 'Leg day', target_muscle: ['quads'] })}
+ *       />
+ *       {activeWorkout && (
+ *         <Button title="End" onPress={() => endWorkout(activeWorkout.id)} />
+ *       )}
+ *     </View>
+ *   );
+ * }
+ *
+ * @returns Workouts list, active workout, loading/error state, and CRUD methods.
+ */
+export function useWorkouts(): UseWorkoutsReturn {
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
 
-  const startWorkout = useCallback(
-    async (name = 'Workout') => {
+  /**
+   * Re-fetch all workouts for the current user from the database.
+   * Replaces local state with fresh results.
+   */
+  const refresh = useCallback(async () => {
+    if (isMountedRef.current) {
       setLoading(true);
       setError(null);
+    }
 
-      if (!user?.id) {
-        const session = localWorkout(name);
-        setActiveWorkout(session);
-        setLoading(false);
-        return session;
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      if (!isMountedRef.current) return;
+      setWorkouts([]);
+      setError(userError?.message ?? 'Not authenticated');
+      setLoading(false);
+      return;
+    }
+
+    const { data, error: fetchError } = await supabase
+      .from('workouts')
+      .select('id, user_id, name, target_muscle, started_at, ended_at, created_at')
+      .eq('user_id', userData.user.id)
+      .order('started_at', { ascending: false });
+
+    if (!isMountedRef.current) return;
+
+    if (fetchError) {
+      setWorkouts([]);
+      setError(fetchError.message);
+      setLoading(false);
+      return;
+    }
+
+    setWorkouts((data ?? []).map(normalizeWorkoutRow));
+    setLoading(false);
+  }, []);
+
+  /**
+   * Create and start a new workout session for the current user.
+   * Sets started_at to now and prepends the new workout to local state.
+   *
+   * @param input - Session name and target muscle groups.
+   * @returns The newly created Workout row.
+   * @throws If the user is not authenticated or the insert fails.
+   */
+  const createWorkout = useCallback(
+    async ({ name, target_muscle }: CreateWorkoutInput): Promise<Workout> => {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        throw new Error(userError?.message ?? 'Not authenticated');
       }
 
-      const startedAt = new Date().toISOString();
       const { data, error: insertError } = await supabase
         .from('workouts')
-        .insert({ user_id: user.id, name, started_at: startedAt })
-        .select('id,name,started_at,ended_at')
+        .insert({
+          user_id: userData.user.id,
+          name,
+          target_muscle,
+          started_at: new Date().toISOString(),
+        })
+        .select('id, user_id, name, target_muscle, started_at, ended_at, created_at')
         .single();
 
-      if (insertError) {
-        setError(insertError.message);
-        setLoading(false);
-        throw insertError;
+      if (insertError || !data) {
+        throw new Error(insertError?.message ?? 'Failed to create workout');
       }
 
-      const session = mapWorkoutRow(data as WorkoutRow);
-      setActiveWorkout(session);
-      setLoading(false);
-      return session;
+      const newWorkout = normalizeWorkoutRow(data);
+
+      if (isMountedRef.current) {
+        setWorkouts((prev) => [newWorkout, ...prev]);
+      }
+
+      return newWorkout;
     },
-    [user?.id],
+    [],
   );
 
-  const endWorkout = useCallback(
-    async (session = activeWorkout) => {
-      if (!session) return null;
+  /**
+   * End an active workout by setting its ended_at timestamp to now.
+   * Updates the matching workout in local state.
+   *
+   * Note: this does not currently update gym_equipment.available_count —
+   * that integration will be added when BE2's count-decrement logic lands.
+   *
+   * @param workoutId - The id of the workout to end.
+   * @returns The updated Workout row.
+   * @throws If the update fails.
+   */
+  const endWorkout = useCallback(async (workoutId: string): Promise<Workout> => {
+    const { data, error: updateError } = await supabase
+      .from('workouts')
+      .update({ ended_at: new Date().toISOString() })
+      .eq('id', workoutId)
+      .select('id, user_id, name, target_muscle, started_at, ended_at, created_at')
+      .single();
 
-      setLoading(true);
-      setError(null);
-      const endedAt = new Date().toISOString();
+    if (updateError || !data) {
+      throw new Error(updateError?.message ?? 'Failed to end workout');
+    }
 
-      if (session.source === 'local') {
-        const endedSession = { ...session, endedAt, durationMin: getDurationMin(session.startedAt, endedAt) };
-        setActiveWorkout(null);
-        setHistory((prev) => [endedSession, ...prev]);
-        setLoading(false);
-        return endedSession;
-      }
+    const updated = normalizeWorkoutRow(data);
 
-      const { data, error: updateError } = await supabase
-        .from('workouts')
-        .update({ ended_at: endedAt })
-        .eq('id', session.id)
-        .select('id,name,started_at,ended_at')
-        .single();
+    if (isMountedRef.current) {
+      setWorkouts((prev) => prev.map((w) => (w.id === workoutId ? updated : w)));
+    }
 
-      if (updateError) {
-        setError(updateError.message);
-        setLoading(false);
-        throw updateError;
-      }
+    return updated;
+  }, []);
 
-      const endedSession = mapWorkoutRow(data as WorkoutRow);
-      setActiveWorkout(null);
-      setHistory((prev) => [endedSession, ...prev]);
-      setLoading(false);
-      return endedSession;
-    },
-    [activeWorkout],
-  );
+  /**
+   * Fetch a single workout by id directly from the database.
+   * Does not affect or rely on local state — useful for screens that
+   * load a specific workout outside the cached list.
+   *
+   * @param workoutId - The id of the workout to fetch.
+   * @returns The Workout row.
+   * @throws If the workout is not found or the fetch fails.
+   */
+  const getWorkout = useCallback(async (workoutId: string): Promise<Workout> => {
+    const { data, error: fetchError } = await supabase
+      .from('workouts')
+      .select('id, user_id, name, target_muscle, started_at, ended_at, created_at')
+      .eq('id', workoutId)
+      .single();
 
-  const loadHistory = useCallback(
-    async (limit = 20) => {
-      if (!user?.id) return [];
+    if (fetchError || !data) {
+      throw new Error(fetchError?.message ?? 'Failed to fetch workout');
+    }
 
-      setLoading(true);
-      setError(null);
-      const { data, error: fetchError } = await supabase
-        .from('workouts')
-        .select('id,name,started_at,ended_at')
-        .eq('user_id', user.id)
-        .not('ended_at', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(limit);
+    return normalizeWorkoutRow(data);
+  }, []);
 
-      if (fetchError) {
-        setError(fetchError.message);
-        setLoading(false);
-        throw fetchError;
-      }
+  useEffect(() => {
+    isMountedRef.current = true;
+    void refresh();
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [refresh]);
 
-      try {
-        const rows = (data ?? []) as WorkoutRow[];
-        const ids = rows.map((row) => String(row.id));
-        const statsByWorkout = await loadWorkoutStats(ids);
-        const sessions = rows.map((row) => mapWorkoutRow(row, statsByWorkout.get(String(row.id)) ?? emptyStats));
-        setHistory(sessions);
-        setLoading(false);
-        return sessions;
-      } catch (statsError) {
-        const message = statsError instanceof Error ? statsError.message : 'Failed to load workout stats';
-        setError(message);
-        setLoading(false);
-        throw statsError;
-      }
-    },
-    [user?.id],
-  );
+  const activeWorkout = workouts.find((w) => w.ended_at === null) ?? null;
 
   return {
+    workouts,
     activeWorkout,
-    history,
     loading,
     error,
-    startWorkout,
+    refresh,
+    createWorkout,
     endWorkout,
-    loadHistory,
+    getWorkout,
   };
 }
