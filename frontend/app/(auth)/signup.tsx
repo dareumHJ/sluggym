@@ -1,188 +1,67 @@
-import { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from 'react-native';
-import { Link, router } from 'expo-router';
-import { Colors, Spacing, BorderRadius, FontSize } from '../../src/constants/theme';
-import { supabase } from '../../src/lib/supabase';
+import React, { useState } from 'react';
+import { View, Text, KeyboardAvoidingView, Platform, ScrollView, Pressable } from 'react-native';
+import { Link } from 'expo-router';
+import { useTheme, Space, Size } from '../../src/constants/theme';
+import { Button } from '../../src/components/primitives';
+import { useAuth } from '../../src/contexts/AuthContext';
 
-export default function SignUpScreen() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export default function SignupScreen() {
+  const t = useTheme();
+  const { signInWithGoogle } = useAuth();
   const [loading, setLoading] = useState(false);
-  
-  const handleSignUp = async () => {
-    if (!email || !password || !name) {
-      Alert.alert('Missing info', 'Please fill in all fields.');
-      return;
-    }
-    if (password.length < 6) {
-      Alert.alert('Weak password', 'Password must be at least 6 characters.');
-      return;
-    }
+  const [errorMessage, setErrorMessage] = useState('');
 
+  const onSubmit = async () => {
+    setErrorMessage('');
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: { name },
-      },
-    });
-    setLoading(false);
-
-    if (error) {
-      Alert.alert('Sign up failed', error.message);
-      return;
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      setErrorMessage(error?.message ?? 'Google sign up failed. Try again.');
+    } finally {
+      setLoading(false);
     }
-
-    if (data.session) {
-      router.replace('/(tabs)');
-    } else {
-      Alert.alert(
-        'Check your email',
-        'We sent you a confirmation link. Tap it to finish creating your account, then come back and sign in.',
-      );
-      router.replace('/(auth)/login');
-    }
-  };  
+  };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <View style={styles.header}>
-        <Text style={styles.brand}>SlugGym</Text>
-        <Text style={styles.subtitle}>Create your account</Text>
-      </View>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: t.bg }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: Space['2xl'], paddingTop: 80 }} keyboardShouldPersistTaps="handled">
+        <Text style={{ color: t.text, fontSize: Size['3xl'], fontWeight: '800', letterSpacing: -0.5 }}>Create account</Text>
+        <Text style={{ color: t.textSecondary, fontSize: Size.md, marginTop: 6, marginBottom: Space['2xl'] }}>
+          SlugGym uses Google sign-in. Continue with your UCSC Google account to create a profile.
+        </Text>
 
-      <View style={styles.form}>
-        <Text style={styles.label}>Name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Your name"
-          placeholderTextColor={Colors.textMuted}
-          value={name}
-          onChangeText={setName}
-        />
+        {errorMessage ? (
+          <View
+            style={{
+              backgroundColor: 'rgba(255, 82, 82, 0.1)',
+              borderWidth: 1,
+              borderColor: 'rgba(255, 82, 82, 0.3)',
+              borderRadius: 16,
+              paddingHorizontal: Space.lg,
+              paddingVertical: Space.md,
+              marginBottom: Space.lg,
+            }}
+          >
+            <Text style={{ color: t.error, fontSize: Size.sm, textAlign: 'center' }}>{errorMessage}</Text>
+          </View>
+        ) : null}
 
-        <Text style={styles.label}>UCSC Email</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="your@ucsc.edu"
-          placeholderTextColor={Colors.textMuted}
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
+        <View style={{ marginTop: Space.lg }}>
+          <Button title={loading ? 'Opening Google…' : 'Continue with Google'} onPress={onSubmit} size="lg" disabled={loading} />
+        </View>
 
-        <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Create a password"
-          placeholderTextColor={Colors.textMuted}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center', marginTop: Space.lg, lineHeight: 18 }}>
+          We’ll use your Google identity to sign you in and create your SlugGym profile.
+        </Text>
 
-        <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleSignUp}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Creating account...' : 'Sign Up'}
-          </Text>
-        </TouchableOpacity>
-
-        <Link href="/(auth)/login" asChild>
-          <TouchableOpacity style={styles.linkButton}>
-            <Text style={styles.linkText}>
-              Already have an account? <Text style={styles.linkHighlight}>Sign In</Text>
-            </Text>
-          </TouchableOpacity>
-        </Link>
-      </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 'auto', paddingTop: Space['3xl'] }}>
+          <Text style={{ color: t.textSecondary, fontSize: Size.sm }}>Already have access? </Text>
+          <Link href="/(auth)/login" asChild>
+            <Pressable><Text style={{ color: t.primary, fontSize: Size.sm, fontWeight: '700' }}>Sign in</Text></Pressable>
+          </Link>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    justifyContent: 'center',
-    paddingHorizontal: Spacing['3xl'],
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: Spacing['4xl'],
-  },
-  brand: {
-    fontSize: FontSize['4xl'],
-    fontWeight: '800',
-    color: Colors.primary,
-    marginBottom: Spacing.sm,
-  },
-  subtitle: {
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-  },
-  form: {
-    gap: Spacing.md,
-  },
-  label: {
-    fontSize: FontSize.sm,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Spacing.xs,
-  },
-  input: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    fontSize: FontSize.md,
-    color: Colors.text,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  button: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-    paddingVertical: Spacing.lg,
-    alignItems: 'center',
-    marginTop: Spacing.lg,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    fontSize: FontSize.md,
-    fontWeight: '700',
-    color: Colors.onPrimary,
-  },
-  linkButton: {
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
-  },
-  linkText: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-  },
-  linkHighlight: {
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-});
