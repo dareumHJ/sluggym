@@ -14,6 +14,12 @@ export interface Workout {
   started_at: string;
   /** ISO timestamp string when the workout ended, or null if still active. */
   ended_at: string | null;
+  /**
+   * Workout duration in minutes, computed from started_at and ended_at.
+   * Null if the workout is still active (no ended_at).
+   * Minimum value when both timestamps are valid is 1 (sub-minute workouts round up).
+   */
+  duration_min: number | null;
   created_at: string;
 }
 
@@ -56,6 +62,19 @@ interface WorkoutRow {
   created_at: string;
 }
 
+/**
+ * Compute workout duration in minutes from start/end timestamps.
+ * Returns null if the workout is still active or if either timestamp is invalid.
+ * Rounds up to a minimum of 1 minute when both timestamps are valid.
+ */
+function computeDurationMin(startedAt: string | null, endedAt: string | null): number | null {
+  if (!startedAt || !endedAt) return null;
+  const start = new Date(startedAt).getTime();
+  const end = new Date(endedAt).getTime();
+  if (isNaN(start) || isNaN(end) || end < start) return null;
+  return Math.max(1, Math.round((end - start) / 60_000));
+}
+
 function normalizeWorkoutRow(row: WorkoutRow): Workout {
   return {
     id: String(row.id),
@@ -64,6 +83,7 @@ function normalizeWorkoutRow(row: WorkoutRow): Workout {
     target_muscle: row.target_muscle ?? [],
     started_at: row.started_at,
     ended_at: row.ended_at,
+    duration_min: computeDurationMin(row.started_at, row.ended_at),
     created_at: row.created_at,
   };
 }
@@ -74,6 +94,9 @@ function normalizeWorkoutRow(row: WorkoutRow): Workout {
  * Automatically fetches the user's workouts on mount, sorted newest first.
  * Provides methods to create, end, and read individual sessions, plus a
  * convenience `activeWorkout` accessor for the in-progress session if any.
+ *
+ * Each Workout object includes a computed `duration_min` field (in minutes),
+ * which is null while the workout is still active.
  *
  * Requires the user to be signed in via Supabase auth — operations will
  * fail with a "Not authenticated" error otherwise.
@@ -186,19 +209,56 @@ export function useWorkouts(): UseWorkoutsReturn {
 
   /**
    * End an active workout by setting its ended_at timestamp to now.
-   * Updates the matching workout in local state.
    *
-   * Note: this does not currently update gym_equipment.available_count —
-   * that integration will be added when BE2's count-decrement logic lands.
+   * If any exercises in this workout are still active (have null ended_at),
+   * they are automatically ended first and their equipment counts are
+   * incremented back. This handles the common UX case where a user ends
+   * a workout while still mid-exercise — the equipment is properly released
+   * even though the user didn't explicitly end the exercise first.
    *
    * @param workoutId - The id of the workout to end.
-   * @returns The updated Workout row.
-   * @throws If the update fails.
+   * @returns The updated Workout row with computed duration_min.
+   * @throws If any update fails.
    */
   const endWorkout = useCallback(async (workoutId: string): Promise<Workout> => {
+    // Find any active exercises in this workout (ended_at IS NULL)
+    const { data: activeExercises, error: fetchActiveError } = await supabase
+      .from('workout_exercises')
+      .select('id, equipment_id')
+      .eq('workout_id', workoutId)
+      .is('ended_at', null);
+
+    if (fetchActiveError) {
+      throw new Error(`Failed to check for active exercises: ${fetchActiveError.message}`);
+    }
+
+    // Cascade-end each active exercise and increment its equipment count back
+    const endedAt = new Date().toISOString();
+    for (const ex of activeExercises ?? []) {
+      const { error: updateExError } = await supabase
+        .from('workout_exercises')
+        .update({ ended_at: endedAt })
+        .eq('id', ex.id);
+
+      if (updateExError) {
+        throw new Error(`Failed to end active exercise ${ex.id}: ${updateExError.message}`);
+      }
+
+      const { error: rpcError } = await supabase.rpc('increment_equipment_count', {
+        equipment_id_input: Number(ex.equipment_id),
+      });
+
+      if (rpcError) {
+        throw new Error(
+          `Exercise ${ex.id} ended but failed to release equipment count: ${rpcError.message}`,
+        );
+      }
+    }
+
+    // Now end the workout itself
     const { data, error: updateError } = await supabase
       .from('workouts')
-      .update({ ended_at: new Date().toISOString() })
+      .update({ ended_at: endedAt })
       .eq('id', workoutId)
       .select('id, user_id, name, target_muscle, started_at, ended_at, created_at')
       .single();
@@ -222,7 +282,7 @@ export function useWorkouts(): UseWorkoutsReturn {
    * load a specific workout outside the cached list.
    *
    * @param workoutId - The id of the workout to fetch.
-   * @returns The Workout row.
+   * @returns The Workout row with computed duration_min.
    * @throws If the workout is not found or the fetch fails.
    */
   const getWorkout = useCallback(async (workoutId: string): Promise<Workout> => {
