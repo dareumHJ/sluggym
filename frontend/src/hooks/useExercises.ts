@@ -1,115 +1,637 @@
+/**
+ * useExercises hook — per-exercise lifecycle for workout sessions.
+ *
+ * Replaces the previous batch-save useExercises with a per-exercise
+ * tracking design that lets the database reflect equipment usage in
+ * real time (per the architecture decision in Sprint 2's team meeting).
+ *
+ * Key features:
+ * - addExercise() / endExercise() with atomic gym_equipment.available_count updates
+ * - Set logging (addSet, updateSet, deleteSet) with auto-renumbering on delete
+ * - Read functions (getExercisesForWorkout, getActiveExercise) with nested sets
+ * - hydrateActiveExercise() for restoring in-progress workout state on app load
+ * - Enforces "one active exercise per workout" at the hook level
+ *
+ * Related Supabase changes (see backend/db/sprint2-policies-and-functions.sql):
+ * - decrement_equipment_count and increment_equipment_count RPC functions
+ * - RLS policies on workout_exercises and exercise_sets restricting access to workout owner
+ *
+ * Note: This hook intentionally has a different API from the previous useExercises
+ * (which only had saveWorkoutExercises). Components using the old API will need
+ * to be refactored — that's a separate PR for the FE team.
+ */
+
 import { useCallback, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
-export type ExerciseLogInput = {
+/**
+ * A row from the `workout_exercises` table representing a single exercise
+ * performed (or being performed) within a workout session.
+ */
+export interface WorkoutExercise {
   id: string;
-  equipmentId?: string | null;
-  name: string;
-  sets: {
-    kg: string | number | null;
-    reps: string | number | null;
-    completed: boolean;
-  }[];
-};
+  workout_id: string;
+  exercise_id: string;
+  equipment_id: string;
+  order_index: number;
+  /** ISO timestamp when the user started using this equipment. */
+  started_at: string;
+  /** ISO timestamp when the user finished, or null if still active. */
+  ended_at: string | null;
+  created_at: string;
+}
 
-type SaveWorkoutExercisesInput = {
-  workoutId: string | null | undefined;
-  exercises: ExerciseLogInput[];
-};
+/**
+ * A row from the `exercise_sets` table representing one set
+ * (e.g. "10 reps at 50kg") within a workout_exercise.
+ */
+export interface ExerciseSet {
+  id: string;
+  workout_exercise_id: string;
+  set_number: number;
+  weight: number;
+  reps: number;
+  is_completed: boolean;
+  created_at: string;
+}
 
-type WorkoutExerciseRow = {
+/**
+ * A workout_exercise row joined with all its exercise_sets.
+ * Returned by getExercisesForWorkout and getActiveExercise.
+ */
+export interface WorkoutExerciseWithSets extends WorkoutExercise {
+  sets: ExerciseSet[];
+}
+
+interface AddExerciseInput {
+  workoutId: string;
+  exerciseId: string;
+  equipmentId: string;
+  orderIndex: number;
+}
+
+interface AddSetInput {
+  workoutExerciseId: string;
+  setNumber: number;
+  weight: number;
+  reps: number;
+  isCompleted?: boolean;
+}
+
+interface UpdateSetInput {
+  setId: string;
+  weight?: number;
+  reps?: number;
+  isCompleted?: boolean;
+}
+
+interface UseExercisesReturn {
+  /** The currently in-progress exercise (ended_at is null), or null if none. */
+  activeExercise: WorkoutExercise | null;
+  /** Sets for the active exercise, ordered by set_number ascending. */
+  setsForActiveExercise: ExerciseSet[];
+  /** True while a hook operation is in progress. */
+  loading: boolean;
+  /** Error message from the most recent failed operation, or null. */
+  error: string | null;
+  /** Start a new exercise; decrements equipment count. */
+  addExercise: (input: AddExerciseInput) => Promise<WorkoutExercise>;
+  /** End an active exercise; increments equipment count. */
+  endExercise: (workoutExerciseId: string, equipmentId: string) => Promise<WorkoutExercise>;
+  /** Add a set to an exercise. */
+  addSet: (input: AddSetInput) => Promise<ExerciseSet>;
+  /** Update fields on an existing set. */
+  updateSet: (input: UpdateSetInput) => Promise<ExerciseSet>;
+  /** Delete a set; renumbers remaining sets to stay contiguous. */
+  deleteSet: (setId: string) => Promise<void>;
+  /**
+   * Fetch all exercises for a workout, with their sets nested.
+   * Sorted by exercise order_index, then set_number within each exercise.
+   * Does not affect local state.
+   */
+  getExercisesForWorkout: (workoutId: string) => Promise<WorkoutExerciseWithSets[]>;
+  /**
+   * Fetch the active (in-progress) exercise for a workout, with its sets.
+   * Returns null if no exercise is active. Does not affect local state.
+   */
+  getActiveExercise: (workoutId: string) => Promise<WorkoutExerciseWithSets | null>;
+  /**
+   * Convenience function: calls getActiveExercise and populates local state
+   * (activeExercise + setsForActiveExercise). Use when the app loads to
+   * restore in-progress workout state.
+   */
+  hydrateActiveExercise: (workoutId: string) => Promise<WorkoutExerciseWithSets | null>;
+}
+
+interface WorkoutExerciseRow {
   id: string | number;
-};
-
-function toOptionalNumber(value: string | number | null | undefined) {
-  if (value === null || value === undefined || value === '') return null;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : null;
+  workout_id: string;
+  exercise_id: string | number;
+  equipment_id: string | number;
+  order_index: number;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
 }
 
-function toRequiredNumber(value: string | number | null | undefined) {
-  if (value === null || value === undefined || value === '') return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+interface ExerciseSetRow {
+  id: string | number;
+  workout_exercise_id: string | number;
+  set_number: number;
+  weight: number | string | null;
+  reps: number | null;
+  is_completed: boolean | null;
+  created_at: string;
 }
 
-export function useExercises() {
-  const [saving, setSaving] = useState(false);
+/**
+ * Row shape returned by Supabase nested select.
+ * The exercise_sets are nested as an array.
+ */
+interface WorkoutExerciseWithSetsRow extends WorkoutExerciseRow {
+  exercise_sets: ExerciseSetRow[];
+}
+
+function normalizeWorkoutExerciseRow(row: WorkoutExerciseRow): WorkoutExercise {
+  return {
+    id: String(row.id),
+    workout_id: row.workout_id,
+    exercise_id: String(row.exercise_id),
+    equipment_id: String(row.equipment_id),
+    order_index: row.order_index,
+    started_at: row.started_at,
+    ended_at: row.ended_at,
+    created_at: row.created_at,
+  };
+}
+
+function normalizeExerciseSetRow(row: ExerciseSetRow): ExerciseSet {
+  return {
+    id: String(row.id),
+    workout_exercise_id: String(row.workout_exercise_id),
+    set_number: row.set_number,
+    weight: typeof row.weight === 'string' ? parseFloat(row.weight) : (row.weight ?? 0),
+    reps: row.reps ?? 0,
+    is_completed: row.is_completed ?? false,
+    created_at: row.created_at,
+  };
+}
+
+/**
+ * Combine a workout_exercise row with its sets into a single object
+ * with sets sorted ascending by set_number.
+ */
+function normalizeWorkoutExerciseWithSets(row: WorkoutExerciseWithSetsRow): WorkoutExerciseWithSets {
+  const exercise = normalizeWorkoutExerciseRow(row);
+  const sets = (row.exercise_sets ?? [])
+    .map(normalizeExerciseSetRow)
+    .sort((a, b) => a.set_number - b.set_number);
+  return { ...exercise, sets };
+}
+
+/**
+ * Hook for managing per-exercise lifecycle within a workout session.
+ *
+ * Tracks individual exercises in real time so the database always reflects
+ * which equipment is currently in use. Each addExercise call decrements
+ * `gym_equipment.available_count` for the corresponding equipment, and each
+ * endExercise call increments it back. This enables real-time equipment
+ * occupancy in the UI.
+ *
+ * Also tracks sets (weight, reps) for the currently active exercise, and
+ * provides read functions for fetching exercises (with sets) for any workout.
+ *
+ * Requires the user to be signed in via AuthContext — operations will fail
+ * with a "Not authenticated" error otherwise.
+ *
+ * @example
+ * function ExerciseLogger({ workoutId }) {
+ *   const {
+ *     activeExercise,
+ *     setsForActiveExercise,
+ *     addExercise,
+ *     endExercise,
+ *     addSet,
+ *     hydrateActiveExercise,
+ *   } = useExercises();
+ *
+ *   // Restore active exercise when component mounts
+ *   useEffect(() => {
+ *     hydrateActiveExercise(workoutId);
+ *   }, [workoutId]);
+ *
+ *   const startBenchPress = async () => {
+ *     await addExercise({ workoutId, exerciseId: '875', equipmentId: '143', orderIndex: 1 });
+ *   };
+ * }
+ */
+export function useExercises(): UseExercisesReturn {
+  const { user } = useAuth();
+  const [activeExercise, setActiveExercise] = useState<WorkoutExercise | null>(null);
+  const [setsForActiveExercise, setSetsForActiveExercise] = useState<ExerciseSet[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const saveWorkoutExercises = useCallback(async ({ workoutId, exercises }: SaveWorkoutExercisesInput) => {
-    setSaving(true);
-    setError(null);
+  const addExercise = useCallback(
+    async ({ workoutId, exerciseId, equipmentId, orderIndex }: AddExerciseInput): Promise<WorkoutExercise> => {
+      if (!user?.id) {
+        throw new Error('Not authenticated');
+      }
 
-    if (!workoutId || workoutId.startsWith('local-')) {
-      setSaving(false);
-      return { source: 'local' as const, savedExercises: 0, savedSets: 0 };
-    }
-
-    let savedExercises = 0;
-    let savedSets = 0;
-
-    for (const [exerciseIndex, exercise] of exercises.entries()) {
-      const workoutExercisePayload: Record<string, string | number | null> = {
-        workout_id: workoutId,
-        order_index: exerciseIndex + 1,
-      };
-
-      const exerciseId = toOptionalNumber(exercise.id);
-      const equipmentId = toOptionalNumber(exercise.equipmentId);
-      if (exerciseId !== null) workoutExercisePayload.exercise_id = exerciseId;
-      if (equipmentId !== null) workoutExercisePayload.equipment_id = equipmentId;
-
-      const { data: workoutExercise, error: exerciseError } = await supabase
+      setLoading(true);
+      setError(null);
+      
+      // Enforce one active exercise per workout
+      const { data: existingActive, error: checkError } = await supabase
         .from('workout_exercises')
-        .insert(workoutExercisePayload)
         .select('id')
+        .eq('workout_id', workoutId)
+        .is('ended_at', null);
+
+      if (checkError) {
+        setError(checkError.message);
+        setLoading(false);
+        throw new Error(checkError.message);
+      }
+
+      if (existingActive && existingActive.length > 0) {
+        const message = 'Cannot start a new exercise while another is still active. End the current exercise first.';
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      const { data, error: insertError } = await supabase
+        .from('workout_exercises')
+        .insert({
+          workout_id: workoutId,
+          exercise_id: Number(exerciseId),
+          equipment_id: Number(equipmentId),
+          order_index: orderIndex,
+          started_at: new Date().toISOString(),
+        })
+        .select('id, workout_id, exercise_id, equipment_id, order_index, started_at, ended_at, created_at')
         .single();
 
-      if (exerciseError) {
-        setError(exerciseError.message);
-        setSaving(false);
-        throw exerciseError;
+      if (insertError || !data) {
+        const message = insertError?.message ?? 'Failed to add exercise';
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
       }
 
-      savedExercises++;
-      const workoutExerciseId = String((workoutExercise as WorkoutExerciseRow).id);
-      const setPayloads = exercise.sets
-        .map((set, setIndex) => {
-          const weight = toRequiredNumber(set.kg);
-          const reps = toOptionalNumber(set.reps);
-          if (!set.completed || weight === null || reps === null) return null;
+      const newExercise = normalizeWorkoutExerciseRow(data as WorkoutExerciseRow);
 
-          return {
-            workout_exercise_id: workoutExerciseId,
-            set_number: setIndex + 1,
-            weight,
-            reps,
-            is_completed: true,
-          };
+      const { error: rpcError } = await supabase.rpc('decrement_equipment_count', {
+        equipment_id_input: Number(equipmentId),
+      });
+
+      if (rpcError) {
+        const message = `Exercise started but failed to update equipment count: ${rpcError.message}`;
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      setActiveExercise(newExercise);
+      setSetsForActiveExercise([]);
+      setLoading(false);
+      return newExercise;
+    },
+    [user?.id],
+  );
+
+  const endExercise = useCallback(
+    async (workoutExerciseId: string, equipmentId: string): Promise<WorkoutExercise> => {
+      setLoading(true);
+      setError(null);
+
+      const { data, error: updateError } = await supabase
+        .from('workout_exercises')
+        .update({ ended_at: new Date().toISOString() })
+        .eq('id', Number(workoutExerciseId))
+        .select('id, workout_id, exercise_id, equipment_id, order_index, started_at, ended_at, created_at')
+        .single();
+
+      if (updateError || !data) {
+        const message = updateError?.message ?? 'Failed to end exercise';
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      const updated = normalizeWorkoutExerciseRow(data as WorkoutExerciseRow);
+
+      const { error: rpcError } = await supabase.rpc('increment_equipment_count', {
+        equipment_id_input: Number(equipmentId),
+      });
+
+      if (rpcError) {
+        const message = `Exercise ended but failed to release equipment count: ${rpcError.message}`;
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      if (activeExercise?.id === workoutExerciseId) {
+        setActiveExercise(null);
+        setSetsForActiveExercise([]);
+      }
+
+      setLoading(false);
+      return updated;
+    },
+    [activeExercise?.id],
+  );
+
+  const addSet = useCallback(
+    async ({ workoutExerciseId, setNumber, weight, reps, isCompleted = false }: AddSetInput): Promise<ExerciseSet> => {
+      setLoading(true);
+      setError(null);
+
+      const { data, error: insertError } = await supabase
+        .from('exercise_sets')
+        .insert({
+          workout_exercise_id: Number(workoutExerciseId),
+          set_number: setNumber,
+          weight,
+          reps,
+          is_completed: isCompleted,
         })
-        .filter((payload): payload is NonNullable<typeof payload> => payload !== null);
+        .select('id, workout_exercise_id, set_number, weight, reps, is_completed, created_at')
+        .single();
 
-      if (setPayloads.length === 0) continue;
-
-      const { error: setsError } = await supabase.from('exercise_sets').insert(setPayloads);
-
-      if (setsError) {
-        setError(setsError.message);
-        setSaving(false);
-        throw setsError;
+      if (insertError || !data) {
+        const message = insertError?.message ?? 'Failed to add set';
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
       }
 
-      savedSets += setPayloads.length;
-    }
+      const newSet = normalizeExerciseSetRow(data as ExerciseSetRow);
 
-    setSaving(false);
-    return { source: 'supabase' as const, savedExercises, savedSets };
-  }, []);
+      if (activeExercise?.id === workoutExerciseId) {
+        setSetsForActiveExercise((prev) =>
+          [...prev, newSet].sort((a, b) => a.set_number - b.set_number),
+        );
+      }
+
+      setLoading(false);
+      return newSet;
+    },
+    [activeExercise?.id],
+  );
+
+  const updateSet = useCallback(
+    async ({ setId, weight, reps, isCompleted }: UpdateSetInput): Promise<ExerciseSet> => {
+      setLoading(true);
+      setError(null);
+
+      const updates: Record<string, number | boolean> = {};
+      if (weight !== undefined) updates.weight = weight;
+      if (reps !== undefined) updates.reps = reps;
+      if (isCompleted !== undefined) updates.is_completed = isCompleted;
+
+      if (Object.keys(updates).length === 0) {
+        const message = 'No set fields provided to update';
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      const { data, error: updateError } = await supabase
+        .from('exercise_sets')
+        .update(updates)
+        .eq('id', Number(setId))
+        .select('id, workout_exercise_id, set_number, weight, reps, is_completed, created_at')
+        .single();
+
+      if (updateError || !data) {
+        const message = updateError?.message ?? 'Failed to update set';
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      const updated = normalizeExerciseSetRow(data as ExerciseSetRow);
+
+      setSetsForActiveExercise((prev) =>
+        prev.map((s) => (s.id === setId ? updated : s)),
+      );
+
+      setLoading(false);
+      return updated;
+    },
+    [],
+  );
+
+  const deleteSet = useCallback(
+    async (setId: string): Promise<void> => {
+      setLoading(true);
+      setError(null);
+
+      const { data: setData, error: fetchError } = await supabase
+        .from('exercise_sets')
+        .select('id, workout_exercise_id, set_number, weight, reps, is_completed, created_at')
+        .eq('id', Number(setId))
+        .single();
+
+      if (fetchError || !setData) {
+        const message = fetchError?.message ?? 'Set not found';
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      const deletedSet = normalizeExerciseSetRow(setData as ExerciseSetRow);
+
+      const { error: deleteError } = await supabase
+        .from('exercise_sets')
+        .delete()
+        .eq('id', Number(setId));
+
+      if (deleteError) {
+        const message = deleteError.message;
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      const { data: higherSets, error: higherFetchError } = await supabase
+        .from('exercise_sets')
+        .select('id, set_number')
+        .eq('workout_exercise_id', deletedSet.workout_exercise_id)
+        .gt('set_number', deletedSet.set_number);
+
+      if (higherFetchError) {
+        const message = `Set deleted but failed to renumber remaining: ${higherFetchError.message}`;
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      for (const row of higherSets ?? []) {
+        const { error: renumberError } = await supabase
+          .from('exercise_sets')
+          .update({ set_number: row.set_number - 1 })
+          .eq('id', row.id);
+
+        if (renumberError) {
+          const message = `Renumbering failed at set ${row.set_number}: ${renumberError.message}`;
+          setError(message);
+          setLoading(false);
+          throw new Error(message);
+        }
+      }
+
+      if (activeExercise?.id === deletedSet.workout_exercise_id) {
+        setSetsForActiveExercise((prev) =>
+          prev
+            .filter((s) => s.id !== setId)
+            .map((s) =>
+              s.set_number > deletedSet.set_number
+                ? { ...s, set_number: s.set_number - 1 }
+                : s,
+            )
+            .sort((a, b) => a.set_number - b.set_number),
+        );
+      }
+
+      setLoading(false);
+    },
+    [activeExercise?.id],
+  );
+
+  /**
+   * Fetch all exercises for a workout, with their sets nested inside.
+   *
+   * Returns an array sorted by order_index. Within each exercise, sets are
+   * sorted by set_number ascending. Does not affect hook local state.
+   *
+   * @param workoutId - The id of the workout to fetch exercises for
+   * @returns Array of exercises with sets, possibly empty
+   * @throws If the fetch fails
+   */
+  const getExercisesForWorkout = useCallback(
+    async (workoutId: string): Promise<WorkoutExerciseWithSets[]> => {
+      setLoading(true);
+      setError(null);
+
+      // Supabase nested select syntax: foreign-table-name(columns)
+      // This joins exercise_sets via the foreign key relationship
+      const { data, error: fetchError } = await supabase
+        .from('workout_exercises')
+        .select(`
+          id, workout_id, exercise_id, equipment_id, order_index,
+          started_at, ended_at, created_at,
+          exercise_sets (
+            id, workout_exercise_id, set_number, weight, reps, is_completed, created_at
+          )
+        `)
+        .eq('workout_id', workoutId)
+        .order('order_index', { ascending: true });
+
+      if (fetchError) {
+        const message = fetchError.message;
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      const exercises = (data ?? []).map((row) =>
+        normalizeWorkoutExerciseWithSets(row as WorkoutExerciseWithSetsRow),
+      );
+
+      setLoading(false);
+      return exercises;
+    },
+    [],
+  );
+
+  /**
+   * Fetch the active (in-progress) exercise for a workout, with its sets.
+   *
+   * Returns null if no exercise has ended_at = null in this workout.
+   * Does not affect hook local state — use hydrateActiveExercise to also
+   * populate state.
+   *
+   * @param workoutId - The id of the workout to check for active exercise
+   * @returns The active exercise with sets, or null
+   * @throws If the fetch fails
+   */
+  const getActiveExercise = useCallback(
+    async (workoutId: string): Promise<WorkoutExerciseWithSets | null> => {
+      setLoading(true);
+      setError(null);
+
+      const { data, error: fetchError } = await supabase
+        .from('workout_exercises')
+        .select(`
+          id, workout_id, exercise_id, equipment_id, order_index,
+          started_at, ended_at, created_at,
+          exercise_sets (
+            id, workout_exercise_id, set_number, weight, reps, is_completed, created_at
+          )
+        `)
+        .eq('workout_id', workoutId)
+        .is('ended_at', null)
+        .maybeSingle();
+
+      if (fetchError) {
+        const message = fetchError.message;
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      setLoading(false);
+      if (!data) return null;
+      return normalizeWorkoutExerciseWithSets(data as WorkoutExerciseWithSetsRow);
+    },
+    [],
+  );
+
+  /**
+   * Fetch the active exercise for a workout AND populate local state.
+   *
+   * Call this on app load (or when entering a workout screen) to restore
+   * in-progress state. If an active exercise is found, it becomes the new
+   * activeExercise and its sets become setsForActiveExercise. If none is
+   * found, local state is cleared.
+   *
+   * @param workoutId - The id of the workout to hydrate from
+   * @returns The hydrated active exercise, or null
+   * @throws If the fetch fails
+   */
+  const hydrateActiveExercise = useCallback(
+    async (workoutId: string): Promise<WorkoutExerciseWithSets | null> => {
+      const result = await getActiveExercise(workoutId);
+      if (result) {
+        const { sets, ...exerciseFields } = result;
+        setActiveExercise(exerciseFields);
+        setSetsForActiveExercise(sets);
+      } else {
+        setActiveExercise(null);
+        setSetsForActiveExercise([]);
+      }
+      return result;
+    },
+    [getActiveExercise],
+  );
 
   return {
-    saving,
+    activeExercise,
+    setsForActiveExercise,
+    loading,
     error,
-    saveWorkoutExercises,
+    addExercise,
+    endExercise,
+    addSet,
+    updateSet,
+    deleteSet,
+    getExercisesForWorkout,
+    getActiveExercise,
+    hydrateActiveExercise,
   };
 }

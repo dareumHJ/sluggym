@@ -79,7 +79,8 @@ export default function ProfileScreen() {
         ))}
       </Card>
 
-      <View style={{ marginTop: Space.xl }}>
+      <View style={{ marginTop: Space.xl, gap: Space.sm }}>
+        <Button title="🧪 Workouts/Exercises Test" variant="secondary" size="lg" onPress={() => router.push('/exercises-test')} />
         <Button title="Sign out" variant="danger" size="lg" onPress={confirmSignOut} />
       </View>
       </ScrollView>
