@@ -393,6 +393,13 @@ export function useExercises(): UseExercisesReturn {
       if (reps !== undefined) updates.reps = reps;
       if (isCompleted !== undefined) updates.is_completed = isCompleted;
 
+      if (Object.keys(updates).length === 0) {
+        const message = 'No set fields provided to update';
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
       const { data, error: updateError } = await supabase
         .from('exercise_sets')
         .update(updates)
