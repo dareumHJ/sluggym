@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, KeyboardAvoidingView, Platform, ScrollView, Pressable } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Pressable,
+} from 'react-native';
 import { Link } from 'expo-router';
 import { useTheme, Space, Size } from '../../src/constants/theme';
 import { Button } from '../../src/components/primitives';
@@ -7,28 +15,74 @@ import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function SignupScreen() {
   const t = useTheme();
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, signUpWithEmail } = useAuth();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const onSubmit = async () => {
+  const onEmailSubmit = async () => {
     setErrorMessage('');
+    if (!email || !password) {
+      setErrorMessage('Enter an email and password.');
+      return;
+    }
+    if (password.length < 6) {
+      setErrorMessage('Password must be at least 6 characters.');
+      return;
+    }
     setLoading(true);
     try {
-      await signInWithGoogle();
+      await signUpWithEmail(email, password, name.trim() || undefined);
     } catch (error: any) {
-      setErrorMessage(error?.message ?? 'Google sign up failed. Try again.');
+      setErrorMessage(error?.message ?? 'Sign up failed. Try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const onGoogleSubmit = async () => {
+    setErrorMessage('');
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      setErrorMessage(error?.message ?? 'Google sign up failed. Try again.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const anyLoading = loading || googleLoading;
+
+  const inputStyle = {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    paddingHorizontal: Space.lg,
+    paddingVertical: Space.md,
+    fontSize: Size.md,
+    color: t.text,
+    marginBottom: Space.md,
+  } as const;
+
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: t.bg }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: Space['2xl'], paddingTop: 80 }} keyboardShouldPersistTaps="handled">
-        <Text style={{ color: t.text, fontSize: Size['3xl'], fontWeight: '800', letterSpacing: -0.5 }}>Create account</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={{ flex: 1, backgroundColor: t.bg }}
+    >
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, padding: Space['2xl'], paddingTop: 80 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={{ color: t.text, fontSize: Size['3xl'], fontWeight: '800', letterSpacing: -0.5 }}>
+          Create account
+        </Text>
         <Text style={{ color: t.textSecondary, fontSize: Size.md, marginTop: 6, marginBottom: Space['2xl'] }}>
-          SlugGym uses Google sign-in. Continue with your UCSC Google account to create a profile.
+          Sign up with email, or use your UCSC Google account.
         </Text>
 
         {errorMessage ? (
@@ -47,18 +101,68 @@ export default function SignupScreen() {
           </View>
         ) : null}
 
-        <View style={{ marginTop: Space.lg }}>
-          <Button title={loading ? 'Opening Google…' : 'Continue with Google'} onPress={onSubmit} size="lg" disabled={loading} />
+        <TextInput
+          style={inputStyle}
+          placeholder="Name (optional)"
+          placeholderTextColor={t.textSecondary}
+          value={name}
+          onChangeText={setName}
+          autoCapitalize="words"
+          editable={!anyLoading}
+        />
+        <TextInput
+          style={inputStyle}
+          placeholder="Email"
+          placeholderTextColor={t.textSecondary}
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          textContentType="emailAddress"
+          editable={!anyLoading}
+        />
+        <TextInput
+          style={inputStyle}
+          placeholder="Password (min 6 characters)"
+          placeholderTextColor={t.textSecondary}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          textContentType="newPassword"
+          editable={!anyLoading}
+        />
+
+        <Button
+          title={loading ? 'Creating account…' : 'Sign up'}
+          onPress={onEmailSubmit}
+          size="lg"
+          disabled={anyLoading}
+        />
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: Space.lg, gap: Space.md }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+          <Text style={{ color: t.textSecondary, fontSize: Size.sm }}>or</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' }} />
         </View>
 
+        <Button
+          title={googleLoading ? 'Opening Google…' : 'Continue with Google'}
+          onPress={onGoogleSubmit}
+          size="lg"
+          disabled={anyLoading}
+        />
+
         <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center', marginTop: Space.lg, lineHeight: 18 }}>
-          We’ll use your Google identity to sign you in and create your SlugGym profile.
+          By continuing you agree to SlugGym’s terms.
         </Text>
 
         <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 'auto', paddingTop: Space['3xl'] }}>
           <Text style={{ color: t.textSecondary, fontSize: Size.sm }}>Already have access? </Text>
           <Link href="/(auth)/login" asChild>
-            <Pressable><Text style={{ color: t.primary, fontSize: Size.sm, fontWeight: '700' }}>Sign in</Text></Pressable>
+            <Pressable>
+              <Text style={{ color: t.primary, fontSize: Size.sm, fontWeight: '700' }}>Sign in</Text>
+            </Pressable>
           </Link>
         </View>
       </ScrollView>

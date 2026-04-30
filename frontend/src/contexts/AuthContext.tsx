@@ -12,6 +12,8 @@ type Ctx = {
   user: User;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, name?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -166,17 +168,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     throw new Error('Google sign-in did not complete.');
   }, [createSessionFromUrl]);
 
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (error) throw error;
+  }, []);
+
+  const signUpWithEmail = useCallback(
+    async (email: string, password: string, name?: string) => {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          emailRedirectTo: redirectTo,
+          data: name ? { name, full_name: name } : undefined,
+        },
+      });
+      if (error) throw error;
+      // If email confirmation is enabled in Supabase, no session is returned
+      // until the user clicks the link in their inbox.
+      if (!data.session) {
+        throw new Error('Check your email to confirm your account before signing in.');
+      }
+    },
+    [],
+  );
+
   const value = useMemo<Ctx>(
     () => ({
       user: mapSession(session),
       loading,
       signInWithGoogle,
+      signInWithEmail,
+      signUpWithEmail,
       signOut: async () => {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
       },
     }),
-    [loading, session, signInWithGoogle],
+    [loading, session, signInWithGoogle, signInWithEmail, signUpWithEmail],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
