@@ -51,7 +51,8 @@ WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "users update own workouts"
 ON workouts FOR UPDATE
 TO authenticated
-USING (auth.uid() = user_id);
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
 
 -- ============================================================
 -- RLS policies for workout_exercises
