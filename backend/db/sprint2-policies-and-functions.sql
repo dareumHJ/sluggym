@@ -78,6 +78,11 @@ USING (
   workout_id IN (
     SELECT id FROM workouts WHERE user_id = auth.uid()
   )
+)
+WITH CHECK (
+  workout_id IN (
+    SELECT id FROM workouts WHERE user_id = auth.uid()
+  )
 );
 
 CREATE POLICY "users read own workout_exercises"
