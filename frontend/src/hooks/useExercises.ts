@@ -274,8 +274,15 @@ export function useExercises(): UseExercisesReturn {
         .select('id, workout_id, exercise_id, equipment_id, order_index, started_at, ended_at, created_at')
         .single();
 
-      if (insertError || !data) {
-        const message = insertError?.message ?? 'Failed to add exercise';
+      if (insertError) {
+        // violation of the equipment count check constraint returns a 23514 error code
+        if (insertError.code === '23514') {
+          const message = 'This equipment was just claimed by someone else. Please choose another option.';
+          setError(message);
+          setLoading(false);
+          throw new Error(message);
+        }
+        const message = insertError.message ?? 'Failed to add exercise';
         setError(message);
         setLoading(false);
         throw new Error(message);
