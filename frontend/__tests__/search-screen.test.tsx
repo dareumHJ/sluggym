@@ -106,4 +106,47 @@ describe('SearchScreen', () => {
     expect(screen.getByText('Barbell Squat')).toBeTruthy();
     expect(screen.getByText('1 visible · 1 exercises')).toBeTruthy();
   });
+
+  it('instantly updates UI when hook state changes due to realtime event', () => {
+    const { rerender } = render(<SearchScreen />);
+    
+    // Initial render shows 2 available
+    expect(screen.getByText('2')).toBeTruthy();
+
+    // Simulate Realtime websocket updating the hook state
+    mockUseEquipment.mockReturnValue({
+      equipment: [
+        {
+          id: 'eq-1',
+          name: 'Bench Press',
+          category: 'Free Weights',
+          location: '2nd floor',
+          quantity: 1, // <--- COUNT DROPS
+          description: 'Flat bench station',
+        },
+      ],
+      filteredEquipment: [
+        {
+          id: 'eq-1',
+          name: 'Bench Press',
+          category: 'Free Weights',
+          location: '2nd floor',
+          quantity: 1, // <--- COUNT DROPS
+          description: 'Flat bench station',
+        },
+      ],
+      categories: ['All', 'Free Weights'],
+      loading: false,
+      error: null,
+      refresh: jest.fn(async () => undefined),
+    });
+
+    // Re-render the component with the new hook state
+    rerender(<SearchScreen />);
+
+    // Verify UI immediately reflects the new quantity
+    expect(screen.queryByText('2')).toBeNull();
+    expect(screen.getByText('1')).toBeTruthy();
+    expect(screen.getByText('available')).toBeTruthy();
+  });
 });
