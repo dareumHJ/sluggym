@@ -6,7 +6,7 @@ import { useTheme, Space, Size, withAlpha } from '../../src/constants/theme';
 import { Button, Card, SectionLabel, StatTile } from '../../src/components/primitives';
 import { AnimatedSection } from '../../src/components/AnimatedSection';
 import { PR_HISTORY } from '../../src/data/mock';
-import { useWorkouts, type WorkoutSession } from '../../src/hooks/useWorkouts';
+import { useWorkouts, type Workout } from '../../src/hooks/useWorkouts';
 
 const VOLUME_WEEKS = [3200, 3850, 4100, 4520, 4200, 5100, 4820];
 
@@ -49,29 +49,28 @@ function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function workoutMeta(workout: WorkoutSession) {
-  const pieces = [formatWorkoutDate(workout.endedAt ?? workout.startedAt)];
-  if (workout.durationMin) pieces.push(`${workout.durationMin} min`);
-  if (workout.totalSets > 0) pieces.push(`${workout.totalSets} sets`);
-  if (workout.totalVolumeKg > 0) pieces.push(`${workout.totalVolumeKg.toLocaleString()} kg`);
+function workoutMeta(workout: Workout) {
+  const pieces = [formatWorkoutDate(workout.ended_at ?? workout.started_at)];
+  if (workout.duration_min) pieces.push(`${workout.duration_min} min`);
+  if (workout.target_muscle.length > 0) pieces.push(workout.target_muscle.join(', '));
   return pieces.join(' · ');
 }
 
 export default function StatsScreen() {
   const t = useTheme();
-  const { history, loading, error, loadHistory } = useWorkouts();
+  const { workouts, loading, error, refresh } = useWorkouts();
 
   useEffect(() => {
-    void loadHistory();
-  }, [loadHistory]);
+    void refresh();
+  }, [refresh]);
 
   const summary = useMemo(
     () => ({
-      workouts: history.length,
-      totalSets: history.reduce((sum, workout) => sum + workout.totalSets, 0),
-      totalVolumeKg: history.reduce((sum, workout) => sum + workout.totalVolumeKg, 0),
+      workouts: workouts.length,
+      active: workouts.filter((workout) => workout.ended_at === null).length,
+      totalMinutes: workouts.reduce((sum, workout) => sum + (workout.duration_min ?? 0), 0),
     }),
-    [history],
+    [workouts],
   );
 
   return (
@@ -80,8 +79,8 @@ export default function StatsScreen() {
 
       <View style={{ flexDirection: 'row', gap: Space.sm, marginBottom: Space.lg }}>
         <StatTile value={summary.workouts} label="Workouts" accent />
-        <StatTile value={summary.totalSets} label="Sets" />
-        <StatTile value={summary.totalVolumeKg.toLocaleString()} label="Volume kg" />
+        <StatTile value={summary.active} label="Active" />
+        <StatTile value={summary.totalMinutes.toLocaleString()} label="Minutes" />
       </View>
 
       <SectionLabel>Weekly Volume (kg)</SectionLabel>
@@ -118,7 +117,7 @@ export default function StatsScreen() {
       <AnimatedSection delay={240} style={{ marginTop: Space.xl }}>
         <SectionLabel
           action={
-            <Pressable onPress={() => void loadHistory()}>
+            <Pressable onPress={() => void refresh()}>
               <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '800' }}>Refresh</Text>
             </Pressable>
           }
@@ -126,7 +125,7 @@ export default function StatsScreen() {
           Session History
         </SectionLabel>
         <View style={{ gap: Space.sm }}>
-          {loading && history.length === 0 ? (
+          {loading && workouts.length === 0 ? (
             <Card style={{ alignItems: 'center', gap: Space.sm }}>
               <ActivityIndicator color={t.primary} />
               <Text style={{ color: t.textSecondary, fontSize: Size.sm }}>Loading saved sessions…</Text>
@@ -136,11 +135,11 @@ export default function StatsScreen() {
           {error ? (
             <Card style={{ gap: Space.sm }}>
               <Text style={{ color: t.error, fontSize: Size.sm, fontWeight: '700' }}>{error}</Text>
-              <Button title="Retry" variant="secondary" onPress={() => void loadHistory()} />
+              <Button title="Retry" variant="secondary" onPress={() => void refresh()} />
             </Card>
           ) : null}
 
-          {!loading && !error && history.length === 0 ? (
+          {!loading && !error && workouts.length === 0 ? (
             <Card style={{ gap: Space.sm }}>
               <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>No saved sessions yet</Text>
               <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
@@ -149,15 +148,15 @@ export default function StatsScreen() {
             </Card>
           ) : null}
 
-          {history.map((workout) => (
+          {workouts.map((workout) => (
             <Card key={workout.id} style={{ flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{workout.name}</Text>
                 <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{workoutMeta(workout)}</Text>
               </View>
-              {workout.exerciseCount > 0 ? (
+              {workout.ended_at === null ? (
                 <View style={{ backgroundColor: withAlpha(t.primary, 0.15), paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-                  <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '800' }}>{workout.exerciseCount} ex</Text>
+                  <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '800' }}>Active</Text>
                 </View>
               ) : null}
             </Card>
