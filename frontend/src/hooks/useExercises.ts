@@ -275,7 +275,14 @@ export function useExercises(): UseExercisesReturn {
         .single();
 
       if (insertError || !data) {
-        const message = insertError?.message ?? 'Failed to add exercise';
+        // violation of the equipment count check constraint returns a 23514 error code
+        if (insertError.code === '23514') {
+          const message = 'This equipment was just claimed by someone else. Please choose another option.';
+          setError(message);
+          setLoading(false);
+          throw new Error(message);
+        }
+        const message = insertError.message ?? 'Failed to add exercise';
         setError(message);
         setLoading(false);
         throw new Error(message);
@@ -283,16 +290,6 @@ export function useExercises(): UseExercisesReturn {
 
       const newExercise = normalizeWorkoutExerciseRow(data as WorkoutExerciseRow);
 
-      const { error: rpcError } = await supabase.rpc('decrement_equipment_count', {
-        equipment_id_input: Number(equipmentId),
-      });
-
-      if (rpcError) {
-        const message = `Exercise started but failed to update equipment count: ${rpcError.message}`;
-        setError(message);
-        setLoading(false);
-        throw new Error(message);
-      }
 
       setActiveExercise(newExercise);
       setSetsForActiveExercise([]);
@@ -323,16 +320,6 @@ export function useExercises(): UseExercisesReturn {
 
       const updated = normalizeWorkoutExerciseRow(data as WorkoutExerciseRow);
 
-      const { error: rpcError } = await supabase.rpc('increment_equipment_count', {
-        equipment_id_input: Number(equipmentId),
-      });
-
-      if (rpcError) {
-        const message = `Exercise ended but failed to release equipment count: ${rpcError.message}`;
-        setError(message);
-        setLoading(false);
-        throw new Error(message);
-      }
 
       if (activeExercise?.id === workoutExerciseId) {
         setActiveExercise(null);

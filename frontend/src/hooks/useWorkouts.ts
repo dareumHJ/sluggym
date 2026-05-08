@@ -244,15 +244,6 @@ export function useWorkouts(): UseWorkoutsReturn {
         throw new Error(`Failed to end active exercise ${ex.id}: ${updateExError.message}`);
       }
 
-      const { error: rpcError } = await supabase.rpc('increment_equipment_count', {
-        equipment_id_input: Number(ex.equipment_id),
-      });
-
-      if (rpcError) {
-        throw new Error(
-          `Exercise ${ex.id} ended but failed to release equipment count: ${rpcError.message}`,
-        );
-      }
     }
 
     // Now end the workout itself
