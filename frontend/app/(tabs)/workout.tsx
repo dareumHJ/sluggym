@@ -6,7 +6,6 @@ import { useTheme, Space, Radius, Size, withAlpha } from '../../src/constants/th
 import { Card, Button, StatTile } from '../../src/components/primitives';
 import { ACTIVE_WORKOUT } from '../../src/data/mock';
 import type { Exercise, ExerciseSet } from '../../src/types';
-import { useExercises } from '../../src/hooks/useExercises';
 import { useWorkouts } from '../../src/hooks/useWorkouts';
 import { validateWorkoutReps, validateWorkoutSetCount, validateWorkoutWeight } from '../../src/lib/validation';
 
@@ -40,8 +39,7 @@ function getErrorMessage(error: unknown) {
 
 export default function WorkoutScreen() {
   const t = useTheme();
-  const { activeWorkout, startWorkout, endWorkout, loading: workoutLoading, error: workoutError } = useWorkouts();
-  const { saveWorkoutExercises, saving: savingExercises, error: exerciseSaveError } = useExercises();
+  const { activeWorkout, createWorkout, endWorkout, loading: workoutLoading, error: workoutError } = useWorkouts();
   const [exercises, setExercises] = useState<WorkoutExercise[]>(toWorkoutExercises);
   const [startedAt, setStartedAt] = useState(Date.now());
   const [now, setNow] = useState(Date.now());
@@ -53,7 +51,7 @@ export default function WorkoutScreen() {
   const [endError, setEndError] = useState<string | null>(null);
   const [showEndModal, setShowEndModal] = useState(false);
   const [ending, setEnding] = useState(false);
-  const endingInFlight = ending || savingExercises;
+  const endingInFlight = ending;
 
   // workout timer
   useEffect(() => {
@@ -103,7 +101,7 @@ export default function WorkoutScreen() {
     setNow(Date.now());
 
     try {
-      await startWorkout(ACTIVE_WORKOUT.name);
+      await createWorkout({ name: ACTIVE_WORKOUT.name, target_muscle: [] });
     } catch (error) {
       setFormMessage(getErrorMessage(error));
     }
@@ -158,8 +156,10 @@ export default function WorkoutScreen() {
     setEndError(null);
 
     try {
-      await saveWorkoutExercises({ workoutId: activeWorkout.id, exercises });
-      await endWorkout(activeWorkout);
+      // SLU-87 is intentionally not wired here yet: the dev useExercises API
+      // requires real numeric Supabase exercise/equipment ids, while this
+      // screen still renders mock string ids from ACTIVE_WORKOUT.
+      await endWorkout(activeWorkout.id);
       setShowEndModal(false);
       router.replace(`/workout-summary?durationSec=${elapsed}&sets=${totals.sets}&volume=${totals.volume}&exerciseCount=${completedExerciseCount}`);
     } catch (error) {
@@ -347,9 +347,9 @@ export default function WorkoutScreen() {
                 <StatTile value={fmt(elapsed)} label="Duration" />
                 <StatTile value={totals.sets} label="Sets" accent />
               </View>
-              {endError || exerciseSaveError || workoutError ? (
+              {endError || workoutError ? (
                 <Text style={{ color: t.error, fontSize: Size.sm, fontWeight: '700' }}>
-                  {endError ?? exerciseSaveError ?? workoutError}
+                  {endError ?? workoutError}
                 </Text>
               ) : null}
               <View style={{ gap: Space.sm, marginTop: Space.sm }}>
