@@ -13,8 +13,10 @@ jest.mock('../src/hooks/useExerciseCatalog', () => ({
 
 const mockUseEquipment = useEquipment as jest.MockedFunction<typeof useEquipment>;
 const mockUseExerciseCatalog = useExerciseCatalog as jest.MockedFunction<typeof useExerciseCatalog>;
+type EquipmentHookReturn = ReturnType<typeof useEquipment>;
+type ExerciseCatalogHookReturn = ReturnType<typeof useExerciseCatalog>;
 
-function setupMocks() {
+function setupMocks(overrides: { equipment?: Partial<EquipmentHookReturn>; exercises?: Partial<ExerciseCatalogHookReturn> } = {}) {
   mockUseEquipment.mockReturnValue({
     equipment: [
       {
@@ -40,6 +42,7 @@ function setupMocks() {
     loading: false,
     error: null,
     refresh: jest.fn(async () => undefined),
+    ...overrides.equipment,
   });
 
   mockUseExerciseCatalog.mockReturnValue({
@@ -75,6 +78,7 @@ function setupMocks() {
     loading: false,
     error: null,
     refresh: jest.fn(async () => undefined),
+    ...overrides.exercises,
   });
 }
 
@@ -148,5 +152,24 @@ describe('SearchScreen', () => {
     expect(screen.queryByText('2')).toBeNull();
     expect(screen.getByText('1')).toBeTruthy();
     expect(screen.getByText('available')).toBeTruthy();
+  });
+  it('keeps stale equipment visible while showing realtime refresh errors', () => {
+    const refresh = jest.fn(async () => undefined);
+    setupMocks({
+      equipment: {
+        error: 'Realtime connection interrupted. Pulling latest equipment data…',
+        refresh,
+      },
+    });
+
+    render(<SearchScreen />);
+
+    expect(screen.getByText('Using the last loaded data')).toBeTruthy();
+    expect(screen.getByText('Realtime connection interrupted. Pulling latest equipment data…')).toBeTruthy();
+    expect(screen.getByText('Bench Press')).toBeTruthy();
+    expect(screen.getByText('2')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('Retry'));
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 });
