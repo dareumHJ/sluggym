@@ -20,6 +20,58 @@ export const EQUIPMENT: Equipment[] = [
 
 export const HOURLY = [4, 3, 2, 2, 4, 12, 28, 48, 62, 55, 42, 38, 44, 52, 48, 55, 72, 95, 108, 88, 62, 40, 22, 10];
 
+export const WEEKLY_CONGESTION = [
+  { day: 'Mon', hourLabel: '6a', intensity: 18 },
+  { day: 'Mon', hourLabel: '9a', intensity: 34 },
+  { day: 'Mon', hourLabel: '12p', intensity: 52 },
+  { day: 'Mon', hourLabel: '3p', intensity: 61 },
+  { day: 'Mon', hourLabel: '6p', intensity: 84 },
+  { day: 'Mon', hourLabel: '9p', intensity: 47 },
+  { day: 'Tue', hourLabel: '6a', intensity: 16 },
+  { day: 'Tue', hourLabel: '9a', intensity: 31 },
+  { day: 'Tue', hourLabel: '12p', intensity: 49 },
+  { day: 'Tue', hourLabel: '3p', intensity: 58 },
+  { day: 'Tue', hourLabel: '6p', intensity: 79 },
+  { day: 'Tue', hourLabel: '9p', intensity: 44 },
+  { day: 'Wed', hourLabel: '6a', intensity: 21 },
+  { day: 'Wed', hourLabel: '9a', intensity: 39 },
+  { day: 'Wed', hourLabel: '12p', intensity: 56 },
+  { day: 'Wed', hourLabel: '3p', intensity: 64 },
+  { day: 'Wed', hourLabel: '6p', intensity: 88 },
+  { day: 'Wed', hourLabel: '9p', intensity: 50 },
+  { day: 'Thu', hourLabel: '6a', intensity: 14 },
+  { day: 'Thu', hourLabel: '9a', intensity: 29 },
+  { day: 'Thu', hourLabel: '12p', intensity: 43 },
+  { day: 'Thu', hourLabel: '3p', intensity: 55 },
+  { day: 'Thu', hourLabel: '6p', intensity: 74 },
+  { day: 'Thu', hourLabel: '9p', intensity: 41 },
+  { day: 'Fri', hourLabel: '6a', intensity: 24 },
+  { day: 'Fri', hourLabel: '9a', intensity: 41 },
+  { day: 'Fri', hourLabel: '12p', intensity: 60 },
+  { day: 'Fri', hourLabel: '3p', intensity: 71 },
+  { day: 'Fri', hourLabel: '6p', intensity: 91 },
+  { day: 'Fri', hourLabel: '9p', intensity: 63 },
+  { day: 'Sat', hourLabel: '6a', intensity: null },
+  { day: 'Sat', hourLabel: '9a', intensity: 27 },
+  { day: 'Sat', hourLabel: '12p', intensity: 46 },
+  { day: 'Sat', hourLabel: '3p', intensity: 57 },
+  { day: 'Sat', hourLabel: '6p', intensity: 66 },
+  { day: 'Sat', hourLabel: '9p', intensity: 38 },
+  { day: 'Sun', hourLabel: '6a', intensity: null },
+  { day: 'Sun', hourLabel: '9a', intensity: 19 },
+  { day: 'Sun', hourLabel: '12p', intensity: 36 },
+  { day: 'Sun', hourLabel: '3p', intensity: 48 },
+  { day: 'Sun', hourLabel: '6p', intensity: 54 },
+  { day: 'Sun', hourLabel: '9p', intensity: 32 },
+] as const;
+
+export const SPARSE_WEEKLY_CONGESTION = [
+  { day: 'Mon', hourLabel: '6a', intensity: 18 },
+  { day: 'Tue', hourLabel: '6p', intensity: 79 },
+  { day: 'Thu', hourLabel: '12p', intensity: 43 },
+  { day: 'Sat', hourLabel: '9a', intensity: 27 },
+] as const;
+
 export const ZONES: Zone[] = [
   { id: 'A', name: 'Free Weights', count: 24, capacity: 40 },
   { id: 'B', name: 'Cables',       count: 12, capacity: 24 },
