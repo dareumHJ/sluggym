@@ -103,7 +103,7 @@ export default function SearchScreen() {
       {showSpinner ? <ActivityIndicator color={t.primary} /> : null}
       <Text style={{ color: tone === 'error' ? t.error : t.text, fontSize: Size.md, fontWeight: '800', textAlign: 'center' }}>{title}</Text>
       {body ? (
-        <Text style={{ color: t.textMuted, fontSize: Size.xs, lineHeight: 18, textAlign: 'center' }}>{body}</Text>
+        <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20, textAlign: 'center' }}>{body}</Text>
       ) : null}
       {actionTitle && onAction ? <Button title={actionTitle} variant="secondary" onPress={onAction} /> : null}
     </Card>
@@ -112,14 +112,14 @@ export default function SearchScreen() {
   const renderWarningBanner = (message: string, onRetry: () => void) => (
     <Card style={{ borderColor: withAlpha(t.warning, 0.35), backgroundColor: withAlpha(t.warning, 0.08), gap: Space.xs }}>
       <Text style={{ color: t.warning, fontSize: Size.sm, fontWeight: '800' }}>Using the last loaded data</Text>
-      <Text style={{ color: t.textSecondary, fontSize: Size.xs, lineHeight: 18 }}>{message}</Text>
+      <Text style={{ color: t.text, fontSize: Size.sm, lineHeight: 20 }}>{message}</Text>
       <Button title="Retry" variant="secondary" onPress={onRetry} />
     </Card>
   );
 
   const renderFilterChips = ({ label, options, value, onChange }: FilterChipsProps) => (
     <View>
-      <Text style={{ color: t.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 1.1, textTransform: 'uppercase', paddingHorizontal: Space.lg, marginTop: Space.sm }}>
+      <Text style={{ color: t.textSecondary, fontSize: Size.xs, fontWeight: '800', letterSpacing: 1.1, textTransform: 'uppercase', paddingHorizontal: Space.lg, marginTop: Space.sm }}>
         {label}
       </Text>
       <ScrollView
@@ -180,24 +180,24 @@ export default function SearchScreen() {
     return (
       <>
         {error ? renderWarningBanner(error, () => void refresh()) : null}
-        {loading ? <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center' }}>Refreshing live equipment…</Text> : null}
+        {loading ? <Text style={{ color: t.textSecondary, fontSize: Size.sm, textAlign: 'center' }}>Refreshing live equipment…</Text> : null}
         {filteredEquipment.map((item) => (
           <Card key={item.id} style={{ gap: Space.xs }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.md }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{item.name}</Text>
-                <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>
+                <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 20 }}>
                   Category: {item.category}
                   {item.location ? ` · ${item.location}` : ''}
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ color: t.primary, fontSize: Size.sm, fontWeight: '700' }}>{item.quantity}</Text>
-                <Text style={{ color: t.textMuted, fontSize: 10 }}>available</Text>
+                <Text style={{ color: t.primary, fontSize: Size.md, fontWeight: '800' }}>{item.quantity}</Text>
+                <Text style={{ color: t.textSecondary, fontSize: Size.sm, fontWeight: '700' }}>available</Text>
               </View>
             </View>
             {item.description ? (
-              <Text style={{ color: t.textMuted, fontSize: 10, lineHeight: 16 }}>{item.description}</Text>
+              <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>{item.description}</Text>
             ) : null}
           </Card>
         ))}
@@ -245,29 +245,29 @@ export default function SearchScreen() {
     return (
       <>
         {exerciseError ? renderWarningBanner(exerciseError, () => void refreshExercises()) : null}
-        {exerciseLoading ? <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center' }}>Refreshing exercises…</Text> : null}
+        {exerciseLoading ? <Text style={{ color: t.textSecondary, fontSize: Size.sm, textAlign: 'center' }}>Refreshing exercises…</Text> : null}
         {filteredExercises.map((exercise) => (
           <Card key={exercise.id} style={{ gap: Space.sm }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{exercise.name}</Text>
-                <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 3 }}>
+                <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 20 }}>
                   {[pretty(exercise.equipmentRequired ?? 'No equipment'), pretty(exercise.level ?? 'Any level'), pretty(exercise.category ?? 'Exercise')].join(' · ')}
                 </Text>
               </View>
               {exercise.targetMuscle ? (
                 <View style={{ backgroundColor: withAlpha(t.primary, 0.15), paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-                  <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '800' }}>{pretty(exercise.targetMuscle)}</Text>
+                  <Text style={{ color: t.primary, fontSize: Size.sm, fontWeight: '800' }}>{pretty(exercise.targetMuscle)}</Text>
                 </View>
               ) : null}
             </View>
             {exercise.primaryMuscles.length > 0 ? (
-              <Text style={{ color: t.textMuted, fontSize: 10, lineHeight: 16 }}>
+              <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
                 Primary: {exercise.primaryMuscles.map(pretty).join(', ')}
               </Text>
             ) : null}
             {exercise.secondaryMuscles.length > 0 ? (
-              <Text style={{ color: t.textMuted, fontSize: 10, lineHeight: 16 }}>
+              <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
                 Secondary: {exercise.secondaryMuscles.slice(0, 4).map(pretty).join(', ')}
               </Text>
             ) : null}
@@ -332,7 +332,7 @@ export default function SearchScreen() {
         </>
       )}
 
-      <Text style={{ color: t.textSecondary, fontSize: Size.xs, paddingHorizontal: Space.lg, marginTop: 4, marginBottom: Space.sm }}>
+      <Text style={{ color: t.textSecondary, fontSize: Size.sm, paddingHorizontal: Space.lg, marginTop: 6, marginBottom: Space.sm }}>
         {mode === 'equipment'
           ? `${filteredEquipment.length} visible · ${equipment.length} live rows`
           : `${filteredExercises.length} visible · ${exercises.length} exercises`}

@@ -1,0 +1,58 @@
+import React from 'react';
+import { fireEvent, render, screen } from '@testing-library/react-native';
+import { EquipmentAvailabilityMap } from '../src/components/EquipmentAvailabilityMap';
+import { useEquipmentMap } from '../src/hooks/useEquipmentMap';
+
+jest.mock('../src/hooks/useEquipmentMap', () => ({
+  useEquipmentMap: jest.fn(),
+}));
+
+const mockUseEquipmentMap = useEquipmentMap as jest.MockedFunction<typeof useEquipmentMap>;
+
+function mockHook(overrides: Partial<ReturnType<typeof useEquipmentMap>> = {}) {
+  mockUseEquipmentMap.mockReturnValue({
+    equipment: [
+      { id: '1', name: 'Squat Rack', category: 'Free Weights', location: '1st floor', quantity: 1, description: 'Heavy compound station' },
+      { id: '2', name: 'Bench Press', category: 'Free Weights', location: '1st floor', quantity: 0, description: 'Flat bench press setup' },
+      { id: '3', name: 'Treadmill 1', category: 'Cardio', location: '2nd floor', quantity: 2, description: 'Cardio line' },
+    ],
+    statuses: { '1': 'free', '2': 'occupied', '3': 'free' },
+    globalState: 'ready',
+    refresh: jest.fn(async () => undefined),
+    ...overrides,
+  } as ReturnType<typeof useEquipmentMap>);
+}
+
+describe('EquipmentAvailabilityMap', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('renders loading state', () => {
+    mockHook({ equipment: [], statuses: {}, globalState: 'loading' });
+    render(<EquipmentAvailabilityMap />);
+    expect(screen.getByText('Loading the equipment map…')).toBeTruthy();
+  });
+
+  it('renders error state with retry', () => {
+    const refresh = jest.fn(async () => undefined);
+    mockHook({ equipment: [], statuses: {}, globalState: 'error', refresh });
+    render(<EquipmentAvailabilityMap />);
+    fireEvent.press(screen.getByText('Retry'));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders map zones and drill-down details', () => {
+    mockHook();
+    render(<EquipmentAvailabilityMap />);
+
+    expect(screen.getByText('Equipment Availability Map')).toBeTruthy();
+    expect(screen.getAllByText('Power Rack Zone').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Bench Zone').length).toBeGreaterThan(0);
+    expect(screen.getByText('1 of 2 mapped stations currently open')).toBeTruthy();
+    expect(screen.getByText('Squat Rack')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('2nd floor'));
+    expect(screen.getByText('Cardio Zone')).toBeTruthy();
+  });
+});

@@ -6,6 +6,7 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme, Space, Size, withAlpha } from '../../src/constants/theme';
 import { Button, Card, SectionLabel, StatTile } from '../../src/components/primitives';
 import { AnimatedSection } from '../../src/components/AnimatedSection';
+import { EquipmentAvailabilityMap } from '../../src/components/EquipmentAvailabilityMap';
 import { PR_HISTORY } from '../../src/data/mock';
 import { useWorkouts, type Workout } from '../../src/hooks/useWorkouts';
 
@@ -84,17 +85,21 @@ export default function StatsScreen() {
         <StatTile value={summary.totalMinutes.toLocaleString()} label="Minutes" />
       </View>
 
-      <SectionLabel>Weekly Volume (kg)</SectionLabel>
       <AnimatedSection delay={80}>
-      <Card>
-        <VolumeChart />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: Space.sm }}>
-          {['W1','W2','W3','W4','W5','W6','W7'].map(w => <Text key={w} style={{ color: t.textMuted, fontSize: 10 }}>{w}</Text>)}
-        </View>
-      </Card>
+        <EquipmentAvailabilityMap />
       </AnimatedSection>
 
       <AnimatedSection delay={160} style={{ marginTop: Space.xl }}>
+        <SectionLabel>Weekly Volume (kg)</SectionLabel>
+        <Card>
+          <VolumeChart />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: Space.sm }}>
+            {['W1','W2','W3','W4','W5','W6','W7'].map(w => <Text key={w} style={{ color: t.textSecondary, fontSize: Size.sm, fontWeight: '600' }}>{w}</Text>)}
+          </View>
+        </Card>
+      </AnimatedSection>
+
+      <AnimatedSection delay={240} style={{ marginTop: Space.xl }}>
         <SectionLabel>Recent PRs</SectionLabel>
         <View style={{ gap: Space.sm }}>
           {PR_HISTORY.map((p, i) => (
@@ -115,7 +120,7 @@ export default function StatsScreen() {
         </View>
       </AnimatedSection>
 
-      <AnimatedSection delay={240} style={{ marginTop: Space.xl }}>
+      <AnimatedSection delay={320} style={{ marginTop: Space.xl }}>
         <SectionLabel
           action={
             <Pressable onPress={() => void refresh()}>

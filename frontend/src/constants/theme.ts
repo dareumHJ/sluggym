@@ -4,6 +4,7 @@ export const ACCENTS = {
   lime: { primary: '#C6FF3D', container: '#A2D801', onPrimary: '#1B2900' },
   volt: { primary: '#E8FF54', container: '#C7E229', onPrimary: '#2A3200' },
   coral: { primary: '#FF7A59', container: '#E5613F', onPrimary: '#3A0F00' },
+  pink: { primary: '#FF5FA2', container: '#E63F87', onPrimary: '#3A001E' },
   violet: { primary: '#B4A0FF', container: '#8B7FFF', onPrimary: '#1A0040' },
   cyan: { primary: '#66E0FF', container: '#22B8E2', onPrimary: '#001E29' },
 } as const;
