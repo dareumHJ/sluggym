@@ -1,6 +1,7 @@
 // app/(tabs)/stats.tsx
 import React, { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme, Space, Size, withAlpha } from '../../src/constants/theme';
 import { Button, Card, SectionLabel, StatTile } from '../../src/components/primitives';
@@ -148,19 +149,34 @@ export default function StatsScreen() {
             </Card>
           ) : null}
 
-          {workouts.map((workout) => (
-            <Card key={workout.id} style={{ flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{workout.name}</Text>
-                <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{workoutMeta(workout)}</Text>
-              </View>
-              {workout.ended_at === null ? (
-                <View style={{ backgroundColor: withAlpha(t.primary, 0.15), paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-                  <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '800' }}>Active</Text>
-                </View>
-              ) : null}
-            </Card>
-          ))}
+          {workouts.map((workout) => {
+            const isCompleted = workout.ended_at !== null;
+
+            return (
+              <Pressable
+                key={workout.id}
+                disabled={!isCompleted}
+                onPress={() => router.push(`/workout-history/${workout.id}`)}
+              >
+                <Card style={{ flexDirection: 'row', alignItems: 'center', gap: Space.md, opacity: isCompleted ? 1 : 0.72 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{workout.name}</Text>
+                    <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{workoutMeta(workout)}</Text>
+                    {isCompleted ? (
+                      <Text style={{ color: t.primary, fontSize: 10, fontWeight: '700', marginTop: 6 }}>Tap to view details</Text>
+                    ) : null}
+                  </View>
+                  {workout.ended_at === null ? (
+                    <View style={{ backgroundColor: withAlpha(t.primary, 0.15), paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+                      <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '800' }}>Active</Text>
+                    </View>
+                  ) : (
+                    <Text style={{ color: t.textMuted, fontSize: Size.sm }}>›</Text>
+                  )}
+                </Card>
+              </Pressable>
+            );
+          })}
         </View>
       </AnimatedSection>
     </ScrollView>
