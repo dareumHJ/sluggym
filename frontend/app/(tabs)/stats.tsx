@@ -1,10 +1,12 @@
 // app/(tabs)/stats.tsx
 import React, { useEffect, useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme, Space, Size, withAlpha } from '../../src/constants/theme';
 import { Button, Card, SectionLabel, StatTile } from '../../src/components/primitives';
 import { AnimatedSection } from '../../src/components/AnimatedSection';
+import { EquipmentAvailabilityMap } from '../../src/components/EquipmentAvailabilityMap';
 import { PR_HISTORY, WEEKLY_CONGESTION } from '../../src/data/mock';
 import { WeeklyCongestionHeatmap } from '../../src/components/WeeklyCongestionHeatmap';
 import { useWorkouts, type Workout } from '../../src/hooks/useWorkouts';
@@ -75,7 +77,7 @@ export default function StatsScreen() {
   );
 
   return (
-      <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: Space.lg, paddingTop: Space['4xl'], paddingBottom: 120 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: Space.lg, paddingTop: Space['4xl'], paddingBottom: 120 }}>
       <Text style={{ color: t.text, fontSize: Size['2xl'], fontWeight: '800', marginBottom: Space.md }}>Your progress</Text>
 
       <View style={{ flexDirection: 'row', gap: Space.sm, marginBottom: Space.lg }}>
@@ -84,21 +86,29 @@ export default function StatsScreen() {
         <StatTile value={summary.totalMinutes.toLocaleString()} label="Minutes" />
       </View>
 
-      <SectionLabel>Weekly Volume (kg)</SectionLabel>
       <AnimatedSection delay={80}>
-      <Card>
-        <VolumeChart />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: Space.sm }}>
-          {['W1','W2','W3','W4','W5','W6','W7'].map(w => <Text key={w} style={{ color: t.textMuted, fontSize: 10 }}>{w}</Text>)}
-        </View>
-      </Card>
+        <EquipmentAvailabilityMap />
       </AnimatedSection>
 
       <AnimatedSection delay={160} style={{ marginTop: Space.xl }}>
-        <WeeklyCongestionHeatmap data={[...WEEKLY_CONGESTION]} />
+        <SectionLabel>Weekly Volume (kg)</SectionLabel>
+        <Card>
+          <VolumeChart />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: Space.sm }}>
+            {['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7'].map((week) => (
+              <Text key={week} style={{ color: t.textSecondary, fontSize: Size.sm, fontWeight: '600' }}>
+                {week}
+              </Text>
+            ))}
+          </View>
+        </Card>
       </AnimatedSection>
 
       <AnimatedSection delay={240} style={{ marginTop: Space.xl }}>
+        <WeeklyCongestionHeatmap data={[...WEEKLY_CONGESTION]} />
+      </AnimatedSection>
+
+      <AnimatedSection delay={320} style={{ marginTop: Space.xl }}>
         <SectionLabel>Recent PRs</SectionLabel>
         <View style={{ gap: Space.sm }}>
           {PR_HISTORY.map((p, i) => (
@@ -119,7 +129,7 @@ export default function StatsScreen() {
         </View>
       </AnimatedSection>
 
-      <AnimatedSection delay={320} style={{ marginTop: Space.xl }}>
+      <AnimatedSection delay={400} style={{ marginTop: Space.xl }}>
         <SectionLabel
           action={
             <Pressable onPress={() => void refresh()}>
@@ -153,19 +163,34 @@ export default function StatsScreen() {
             </Card>
           ) : null}
 
-          {workouts.map((workout) => (
-            <Card key={workout.id} style={{ flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{workout.name}</Text>
-                <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{workoutMeta(workout)}</Text>
-              </View>
-              {workout.ended_at === null ? (
-                <View style={{ backgroundColor: withAlpha(t.primary, 0.15), paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-                  <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '800' }}>Active</Text>
-                </View>
-              ) : null}
-            </Card>
-          ))}
+          {workouts.map((workout) => {
+            const isCompleted = workout.ended_at !== null;
+
+            return (
+              <Pressable
+                key={workout.id}
+                disabled={!isCompleted}
+                onPress={() => router.push(`/workout-history/${workout.id}`)}
+              >
+                <Card style={{ flexDirection: 'row', alignItems: 'center', gap: Space.md, opacity: isCompleted ? 1 : 0.72 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{workout.name}</Text>
+                    <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{workoutMeta(workout)}</Text>
+                    {isCompleted ? (
+                      <Text style={{ color: t.primary, fontSize: 10, fontWeight: '700', marginTop: 6 }}>Tap to view details</Text>
+                    ) : null}
+                  </View>
+                  {workout.ended_at === null ? (
+                    <View style={{ backgroundColor: withAlpha(t.primary, 0.15), paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+                      <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '800' }}>Active</Text>
+                    </View>
+                  ) : (
+                    <Text style={{ color: t.textMuted, fontSize: Size.sm }}>›</Text>
+                  )}
+                </Card>
+              </Pressable>
+            );
+          })}
         </View>
       </AnimatedSection>
     </ScrollView>
