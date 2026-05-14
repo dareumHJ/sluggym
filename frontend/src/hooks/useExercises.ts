@@ -57,11 +57,33 @@ export interface ExerciseSet {
 }
 
 /**
+ * Minimal exercise metadata joined from the `exercises` table.
+ * Provides human-readable display fields for the history detail UI.
+ */
+export interface ExerciseInfo {
+  id: string;
+  name: string;
+  target_muscle: string;
+  exercise_type: string;
+}
+
+/**
+ * Minimal equipment metadata joined from the `gym_equipment` table.
+ */
+export interface EquipmentInfo {
+  id: string;
+  name: string;
+  category: string;
+}
+
+/**
  * A workout_exercise row joined with all its exercise_sets.
  * Returned by getExercisesForWorkout and getActiveExercise.
  */
 export interface WorkoutExerciseWithSets extends WorkoutExercise {
   sets: ExerciseSet[];
+  exercise: ExerciseInfo | null;
+  equipment: EquipmentInfo | null;
 }
 
 interface AddExerciseInput {
@@ -151,6 +173,21 @@ interface ExerciseSetRow {
  */
 interface WorkoutExerciseWithSetsRow extends WorkoutExerciseRow {
   exercise_sets: ExerciseSetRow[];
+  exercise: ExerciseInfoRow | null;
+  equipment: EquipmentInfoRow | null;
+}
+
+interface ExerciseInfoRow {
+  id: string | number;
+  name: string;
+  target_muscle: string | null;
+  exercise_type: string | null;
+}
+
+interface EquipmentInfoRow {
+  id: string | number;
+  name: string;
+  category: string | null;
 }
 
 function normalizeWorkoutExerciseRow(row: WorkoutExerciseRow): WorkoutExercise {
@@ -187,7 +224,25 @@ function normalizeWorkoutExerciseWithSets(row: WorkoutExerciseWithSetsRow): Work
   const sets = (row.exercise_sets ?? [])
     .map(normalizeExerciseSetRow)
     .sort((a, b) => a.set_number - b.set_number);
-  return { ...exercise, sets };
+
+  const exerciseInfo: ExerciseInfo | null = row.exercise
+    ? {
+        id: String(row.exercise.id),
+        name: row.exercise.name,
+        target_muscle: row.exercise.target_muscle ?? '',
+        exercise_type: row.exercise.exercise_type ?? '',
+      }
+    : null;
+
+  const equipmentInfo: EquipmentInfo | null = row.equipment
+    ? {
+        id: String(row.equipment.id),
+        name: row.equipment.name,
+        category: row.equipment.category ?? '',
+      }
+    : null;
+  
+  return { ...exercise, sets, exercise: exerciseInfo, equipment: equipmentInfo };
 }
 
 /**
@@ -512,6 +567,8 @@ export function useExercises(): UseExercisesReturn {
         .select(`
           id, workout_id, exercise_id, equipment_id, order_index,
           started_at, ended_at, created_at,
+          exercise:exercises (id, name, target_muscle, exercise_type),
+          equipment:gym_equipment (id, name, category),
           exercise_sets (
             id, workout_exercise_id, set_number, weight, reps, is_completed, created_at
           )
@@ -557,6 +614,8 @@ export function useExercises(): UseExercisesReturn {
         .select(`
           id, workout_id, exercise_id, equipment_id, order_index,
           started_at, ended_at, created_at,
+          exercise:exercises (id, name, target_muscle, exercise_type),
+          equipment:gym_equipment (id, name, category),
           exercise_sets (
             id, workout_exercise_id, set_number, weight, reps, is_completed, created_at
           )
