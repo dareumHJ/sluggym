@@ -34,13 +34,14 @@ BEGIN
       GROUP BY equipment_id
     ) counts
     WHERE ge.id = counts.equipment_id
+    RETURNING ge.id
   )
   -- end the abandoned workouts themselves
   UPDATE workouts w
   SET 
     ended_at = NOW(),
     -- Calculate duration so the stats page doesn't crash on abandoned workouts
-    duration_min = EXTRACT(EPOCH FROM (NOW() - started_at)) / 60
+    duration_min = (EXTRACT(EPOCH FROM (NOW() - w.started_at)) / 60)::int
   FROM abandoned a
   WHERE w.id = a.id;
 END;
