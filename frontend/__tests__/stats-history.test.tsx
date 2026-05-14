@@ -7,6 +7,10 @@ jest.mock('expo-router', () => ({
   router: { push: jest.fn() },
 }));
 
+jest.mock('../src/components/EquipmentAvailabilityMap', () => ({
+  EquipmentAvailabilityMap: () => null,
+}));
+
 jest.mock('../src/hooks/useWorkouts', () => ({
   useWorkouts: jest.fn(),
 }));
