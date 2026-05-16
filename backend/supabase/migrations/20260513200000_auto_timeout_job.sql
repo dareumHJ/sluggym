@@ -39,9 +39,7 @@ BEGIN
   -- end the abandoned workouts themselves
   UPDATE workouts w
   SET 
-    ended_at = NOW(),
-    -- Calculate duration so the stats page doesn't crash on abandoned workouts
-    duration_min = (EXTRACT(EPOCH FROM (NOW() - w.started_at)) / 60)::int
+    ended_at = NOW()
   FROM abandoned a
   WHERE w.id = a.id;
 END;
