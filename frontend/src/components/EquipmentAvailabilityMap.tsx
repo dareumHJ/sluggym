@@ -9,35 +9,24 @@ const FLOORS: FloorName[] = ['1st floor', '2nd floor'];
 
 function statusPalette(status: EquipmentMapZoneSummary['status'], color: string) {
   if (status === 'free') {
-    return {
-      fill: withAlpha(color, 0.26),
-      border: withAlpha(color, 0.92),
-      text: color,
-      label: 'Open',
-    };
+    return { border: color, text: color, label: 'Open' };
   }
 
   if (status === 'occupied') {
-    return {
-      fill: withAlpha('#FF8A65', 0.22),
-      border: withAlpha('#FF8A65', 0.92),
-      text: '#FF8A65',
-      label: 'Busy',
-    };
+    return { border: '#FF8A65', text: '#FF8A65', label: 'Busy' };
   }
 
-  return {
-    fill: 'rgba(128,128,140,0.18)',
-    border: 'rgba(180,180,190,0.55)',
-    text: '#B0B0BA',
-    label: 'Unknown',
-  };
+  return { border: 'rgba(180,180,190,0.75)', text: '#B0B0BA', label: 'Unknown' };
 }
 
 function floorSummaryLabel(zones: EquipmentMapZoneSummary[]) {
   const total = zones.reduce((sum, zone) => sum + zone.totalCount, 0);
   const available = zones.reduce((sum, zone) => sum + zone.availableCount, 0);
   return `${available} of ${total} mapped stations currently open`;
+}
+
+function floorLegend(zones: EquipmentMapZoneSummary[]) {
+  return [...zones].sort((a, b) => a.zoneNumber - b.zoneNumber);
 }
 
 export function EquipmentAvailabilityMap() {
@@ -142,9 +131,10 @@ export function EquipmentAvailabilityMap() {
           {floorSummaryLabel(floorZones)}
         </Text>
 
-        <View style={{ position: 'relative', height: 240, borderRadius: Radius.xl, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.border, overflow: 'hidden' }}>
+        <View style={{ position: 'relative', height: 420, borderRadius: Radius.xl, backgroundColor: t.bg, borderWidth: 2, borderColor: t.text, overflow: 'hidden' }}>
           {floorZones.map((zone) => {
             const palette = statusPalette(zone.status, zone.color);
+            const isSelected = selectedZone?.id === zone.id;
             return zone.areas.map((area, index) => (
               <Pressable
                 key={`${zone.id}:${index}`}
@@ -155,39 +145,37 @@ export function EquipmentAvailabilityMap() {
                   top: `${area.top}%`,
                   width: `${area.width}%`,
                   height: `${area.height}%`,
-                  padding: 8,
-                  borderRadius: Radius.md,
-                  backgroundColor: palette.fill,
-                  borderWidth: 1,
-                  borderColor: zone.totalCount === 0 ? withAlpha(t.textMuted, 0.35) : palette.border,
-                  justifyContent: 'space-between',
+                  borderRadius: 2,
+                  backgroundColor: zone.color,
+                  borderWidth: isSelected ? 3 : 1,
+                  borderColor: isSelected ? palette.border : withAlpha('#111111', 0.55),
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
-                <Text style={{ color: zone.totalCount === 0 ? t.textSecondary : palette.text, fontSize: 12, fontWeight: '800' }} numberOfLines={2}>
-                  {zone.name}
-                </Text>
-                <View>
-                  <Text style={{ color: t.text, fontSize: Size.sm, fontWeight: '800' }}>{zone.availableCount}/{zone.totalCount || 0}</Text>
-                  <Text style={{ color: zone.totalCount === 0 ? t.textSecondary : palette.text, fontSize: 12, fontWeight: '700' }}>
-                    {zone.totalCount === 0 ? 'No data yet' : palette.label}
-                  </Text>
+                <View style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 3, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', backgroundColor: withAlpha(zone.color, 0.82) }}>
+                  <Text style={{ color: '#FFFFFF', fontSize: Size['2xl'], fontWeight: '900', lineHeight: 28 }}>{zone.zoneNumber}</Text>
                 </View>
               </Pressable>
             ));
           })}
         </View>
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Space.sm }}>
-          {[
-            { label: 'Open', color: '#4BC08A' },
-            { label: 'Busy', color: '#FF8A65' },
-            { label: 'Unknown', color: '#B0B0BA' },
-          ].map((item) => (
-            <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <View style={{ width: 10, height: 10, borderRadius: 999, backgroundColor: item.color }} />
-              <Text style={{ color: t.textSecondary, fontSize: Size.sm, fontWeight: '700' }}>{item.label}</Text>
-            </View>
-          ))}
+        <View style={{ gap: Space.sm }}>
+          {floorLegend(floorZones).map((zone) => {
+            const palette = statusPalette(zone.status, zone.color);
+            return (
+              <Pressable key={zone.id} onPress={() => setSelectedZoneId(zone.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}>
+                <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: zone.color, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#FFFFFF', fontSize: Size.sm, fontWeight: '900' }}>{zone.zoneNumber}</Text>
+                </View>
+                <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800', flex: 1 }}>{zone.name}</Text>
+                <Text style={{ color: zone.totalCount === 0 ? t.textMuted : palette.text, fontSize: Size.xs, fontWeight: '800' }}>
+                  {zone.totalCount === 0 ? 'No data' : `${zone.availableCount}/${zone.totalCount} · ${palette.label}`}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </Card>
 
