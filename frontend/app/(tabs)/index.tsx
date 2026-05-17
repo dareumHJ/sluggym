@@ -103,7 +103,7 @@ export default function HomeScreen() {
           {ZONES.map((zone) => {
             const zonePct = Math.round((zone.count / zone.capacity) * 100);
             return (
-              <Pressable key={zone.id} onPress={() => router.push('/(tabs)/search')}>
+              <Pressable key={zone.id} onPress={() => router.push('/(tabs)/map')}>
                 <Card style={{ flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
                   <View
                     style={{
