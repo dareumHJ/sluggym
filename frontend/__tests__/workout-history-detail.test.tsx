@@ -98,6 +98,36 @@ describe('WorkoutHistoryDetailScreen', () => {
     expect(screen.getByText('Completed')).toBeTruthy();
   });
 
+  it('renders joined exercise and equipment names when available', async () => {
+    mockUseExercises.mockReturnValue({
+      ...mockUseExercises.mock.results[0]?.value,
+      getExercisesForWorkout: jest.fn(async () => [
+        {
+          id: 'we-joined',
+          workout_id: 'w-1',
+          exercise_id: '12',
+          equipment_id: '88',
+          order_index: 1,
+          started_at: '2026-05-10T01:05:00.000Z',
+          ended_at: '2026-05-10T01:25:00.000Z',
+          created_at: '2026-05-10T01:05:00.000Z',
+          exercise: { id: '12', name: 'Barbell Bench Press' },
+          equipment: { id: '88', name: 'Flat Bench', category: 'Free Weights' },
+          sets: [],
+        },
+      ]),
+    } as ReturnType<typeof useExercises>);
+
+    render(<WorkoutHistoryDetailScreen />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Barbell Bench Press')).toBeTruthy();
+    });
+
+    expect(screen.getByText('Flat Bench · Free Weights')).toBeTruthy();
+    expect(screen.getByText('No completed sets were saved for this exercise.')).toBeTruthy();
+  });
+
   it('renders a missing-detail fallback when no exercises were saved', async () => {
     mockUseExercises.mockReturnValue({
       ...mockUseExercises.mock.results[0]?.value,
