@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import TabsLayout from '../app/(tabs)/_layout';
 import EquipmentMapScreen from '../app/(tabs)/map';
 import { useEquipmentMap } from '../src/hooks/useEquipmentMap';
@@ -50,7 +50,7 @@ describe('Equipment map tab', () => {
     expect(screen.getByText('map:Map')).toBeTruthy();
   });
 
-  it('renders the dedicated map screen with ready map content', () => {
+  it('renders the dedicated map screen with first-floor numbered zones', () => {
     mockMapHook();
 
     render(<EquipmentMapScreen />);
@@ -59,6 +59,32 @@ describe('Equipment map tab', () => {
     expect(screen.getByText('Check mapped machines by floor and see live availability without leaving the main tabs.')).toBeTruthy();
     expect(screen.getByText('Equipment Availability Map')).toBeTruthy();
     expect(screen.getAllByText('Power Rack Zone').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Bench Zone').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Plate-loaded Zone').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('1').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('2').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('3').length).toBeGreaterThan(0);
+  });
+
+  it('switches to second-floor numbered zones from the provided map', () => {
+    mockMapHook({
+      equipment: [
+        { id: 'cable-1', name: 'Cable Row', category: 'Cables', location: '2nd floor', quantity: 0, description: null },
+        { id: 'treadmill-1', name: 'Treadmill', category: 'Cardio', location: '2nd floor', quantity: 2, description: null },
+        { id: 'machine-1', name: 'Leg Extension', category: 'Machines', location: '2nd floor', quantity: 1, description: null },
+        { id: 'box-1', name: 'Plyometric Box', category: 'Functional', location: '2nd floor', quantity: 1, description: null },
+      ],
+      statuses: { 'cable-1': 'occupied', 'treadmill-1': 'free', 'machine-1': 'free', 'box-1': 'free' },
+    });
+
+    render(<EquipmentMapScreen />);
+    fireEvent.press(screen.getByText('2nd floor'));
+
+    expect(screen.getAllByText('Cable Zone').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Cardio Zone').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Machine Zone').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Functional Area').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('4').length).toBeGreaterThan(0);
   });
 
   it('keeps the loading state available in the dedicated tab', () => {
