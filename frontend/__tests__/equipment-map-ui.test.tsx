@@ -42,7 +42,7 @@ describe('EquipmentAvailabilityMap', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('renders map zones and drill-down details', () => {
+  it('renders map zones and opens zone equipment in a popup', () => {
     mockHook();
     render(<EquipmentAvailabilityMap />);
 
@@ -50,7 +50,14 @@ describe('EquipmentAvailabilityMap', () => {
     expect(screen.getAllByText('Power Rack Zone').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Bench Zone').length).toBeGreaterThan(0);
     expect(screen.getByText('1 of 2 mapped stations currently open')).toBeTruthy();
+    expect(screen.queryByText('Squat Rack')).toBeNull();
+
+    fireEvent.press(screen.getAllByLabelText('Open Power Rack Zone equipment popup')[0]);
     expect(screen.getByText('Squat Rack')).toBeTruthy();
+    expect(screen.getByText('Heavy compound station')).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText('Close equipment zone popup'));
+    expect(screen.queryByText('Squat Rack')).toBeNull();
 
     fireEvent.press(screen.getByText('2nd floor'));
     expect(screen.getByText('Cardio Zone')).toBeTruthy();
