@@ -14,6 +14,7 @@ export type EquipmentMapZoneDefinition = {
   id: string;
   name: string;
   floor: FloorName;
+  zoneNumber: number;
   color: string;
   areas: ZoneArea[];
   matchers: {
@@ -34,10 +35,11 @@ export const EQUIPMENT_MAP_ZONES: EquipmentMapZoneDefinition[] = [
     id: 'power-rack-zone',
     name: 'Power Rack Zone',
     floor: '1st floor',
-    color: '#4F8CFF',
+    zoneNumber: 1,
+    color: '#4778C7',
     areas: [
-      { left: 6, top: 16, width: 30, height: 50 },
-      { left: 8, top: 70, width: 24, height: 10 },
+      { left: 4, top: 26, width: 25, height: 58 },
+      { left: 43, top: 86, width: 30, height: 6 },
     ],
     matchers: { names: ['power rack', 'smith machine', 'squat rack'] },
   },
@@ -45,48 +47,70 @@ export const EQUIPMENT_MAP_ZONES: EquipmentMapZoneDefinition[] = [
     id: 'bench-zone',
     name: 'Bench Zone',
     floor: '1st floor',
-    color: '#4BC08A',
-    areas: [{ left: 40, top: 14, width: 24, height: 66 }],
+    zoneNumber: 2,
+    color: '#4F8432',
+    areas: [{ left: 43, top: 6, width: 51, height: 59 }],
     matchers: { names: ['bench', 'back extension', 'situp', 'landmine', 'glute ham', 'power tower'] },
   },
   {
     id: 'plate-loaded-zone',
     name: 'Plate-loaded Zone',
     floor: '1st floor',
-    color: '#E4B84A',
-    areas: [{ left: 68, top: 18, width: 24, height: 62 }],
+    zoneNumber: 3,
+    color: '#FFC20A',
+    areas: [
+      { left: 4, top: 6, width: 25, height: 14 },
+      { left: 43, top: 68, width: 51, height: 14 },
+    ],
     matchers: { names: ['leg press', 'hack squat', 'calf raise', 'glute drive'] },
   },
   {
     id: 'cable-zone',
     name: 'Cable Zone',
     floor: '2nd floor',
-    color: '#4F8CFF',
-    areas: [{ left: 8, top: 18, width: 24, height: 58 }],
+    zoneNumber: 1,
+    color: '#4778C7',
+    areas: [
+      { left: 4, top: 4, width: 10, height: 19 },
+      { left: 4, top: 4, width: 58, height: 6 },
+      { left: 75, top: 49, width: 27, height: 21 },
+    ],
     matchers: { names: ['cable', 'pulldown', 'row'], categories: ['cables'] },
   },
   {
     id: 'cardio-zone',
     name: 'Cardio Zone',
     floor: '2nd floor',
-    color: '#E4B84A',
-    areas: [{ left: 36, top: 18, width: 24, height: 58 }],
+    zoneNumber: 2,
+    color: '#FFC20A',
+    areas: [
+      { left: 4, top: 29, width: 18, height: 38 },
+      { left: 37, top: 49, width: 27, height: 21 },
+    ],
     matchers: { names: ['elliptical', 'motion trainer', 'rowing', 'stair', 'treadmill', 'bike', 'cycle'], categories: ['cardio'] },
   },
   {
     id: 'machine-zone',
     name: 'Machine Zone',
     floor: '2nd floor',
-    color: '#4BC08A',
-    areas: [{ left: 64, top: 18, width: 26, height: 58 }],
+    zoneNumber: 3,
+    color: '#05B65A',
+    areas: [
+      { left: 37, top: 23, width: 27, height: 19 },
+      { left: 4, top: 78, width: 42, height: 21 },
+    ],
     matchers: { categories: ['machines'] },
   },
   {
     id: 'functional-area',
     name: 'Functional Area',
     floor: '2nd floor',
-    color: '#A277FF',
-    areas: [{ left: 24, top: 80, width: 52, height: 10 }],
+    zoneNumber: 4,
+    color: '#9E63D2',
+    areas: [
+      { left: 75, top: 15, width: 27, height: 27 },
+      { left: 63, top: 78, width: 39, height: 21 },
+    ],
     matchers: { names: ['yoga', 'plyometric', 'box'] },
   },
 ];

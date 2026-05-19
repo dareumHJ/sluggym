@@ -6,7 +6,6 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme, Space, Size, withAlpha } from '../../src/constants/theme';
 import { Button, Card, SectionLabel, StatTile } from '../../src/components/primitives';
 import { AnimatedSection } from '../../src/components/AnimatedSection';
-import { EquipmentAvailabilityMap } from '../../src/components/EquipmentAvailabilityMap';
 import { PR_HISTORY, WEEKLY_CONGESTION } from '../../src/data/mock';
 import { WeeklyCongestionHeatmap } from '../../src/components/WeeklyCongestionHeatmap';
 import { useWorkouts, type Workout } from '../../src/hooks/useWorkouts';
@@ -87,10 +86,6 @@ export default function StatsScreen() {
       </View>
 
       <AnimatedSection delay={80}>
-        <EquipmentAvailabilityMap />
-      </AnimatedSection>
-
-      <AnimatedSection delay={160} style={{ marginTop: Space.xl }}>
         <SectionLabel>Weekly Volume (kg)</SectionLabel>
         <Card>
           <VolumeChart />

@@ -32,12 +32,23 @@ function workoutMeta(workout: Workout) {
   return pieces.join(' · ');
 }
 
+type WorkoutExerciseDisplayFields = WorkoutExerciseWithSets & {
+  exercise?: { name?: string | null } | null;
+  equipment?: { name?: string | null; category?: string | null } | null;
+};
+
 function getExerciseLabel(exercise: WorkoutExerciseWithSets) {
-  return `Exercise #${exercise.exercise_id}`;
+  const displayExercise = exercise as WorkoutExerciseDisplayFields;
+  return displayExercise.exercise?.name ?? `Exercise #${exercise.exercise_id}`;
 }
 
 function getEquipmentLabel(exercise: WorkoutExerciseWithSets) {
-  return `Equipment #${exercise.equipment_id}`;
+  const displayExercise = exercise as WorkoutExerciseDisplayFields;
+  const equipmentName = displayExercise.equipment?.name;
+  const equipmentCategory = displayExercise.equipment?.category;
+
+  if (equipmentName && equipmentCategory) return `${equipmentName} · ${equipmentCategory}`;
+  return equipmentName ?? `Equipment #${exercise.equipment_id}`;
 }
 
 export default function WorkoutHistoryDetailScreen() {

@@ -1,5 +1,6 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
+import { router } from 'expo-router';
 import StatsScreen from '../app/(tabs)/stats';
 import { useWorkouts } from '../src/hooks/useWorkouts';
 
@@ -16,6 +17,7 @@ jest.mock('../src/hooks/useWorkouts', () => ({
 }));
 
 const mockUseWorkouts = useWorkouts as jest.MockedFunction<typeof useWorkouts>;
+const mockPush = router.push as jest.Mock;
 
 function makeHookReturn(overrides: Partial<ReturnType<typeof useWorkouts>> = {}): ReturnType<typeof useWorkouts> {
   return {
@@ -45,6 +47,20 @@ function makeHookReturn(overrides: Partial<ReturnType<typeof useWorkouts>> = {})
 describe('StatsScreen session history states', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('renders a completed workout summary and opens its detail screen', () => {
+    mockUseWorkouts.mockReturnValue(makeHookReturn());
+
+    render(<StatsScreen />);
+
+    expect(screen.getByText('Leg Day')).toBeTruthy();
+    expect(screen.getByText(/60 min · Quads/)).toBeTruthy();
+    expect(screen.getByText('Tap to view details')).toBeTruthy();
+
+    fireEvent.press(screen.getByText('Leg Day'));
+
+    expect(mockPush).toHaveBeenCalledWith('/workout-history/w-1');
   });
 
   it('renders the history loading state', () => {

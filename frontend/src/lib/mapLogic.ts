@@ -1,6 +1,9 @@
-import type { LiveEquipment } from '../types';
-
 export type MapStatus = 'free' | 'occupied' | 'unknown';
+
+type EquipmentStatusInput = {
+  id: string | number;
+  quantity?: number | null;
+};
 
 export interface MapState {
   statuses: Record<string, MapStatus>;
@@ -12,7 +15,7 @@ export interface MapState {
  * that the Gym Map UI can easily consume for color-coding.
  */
 export function getEquipmentMapStatus(
-  equipmentList: LiveEquipment[] | null,
+  equipmentList: EquipmentStatusInput[] | null,
   loading: boolean,
   error: Error | string | null
 ): MapState {
