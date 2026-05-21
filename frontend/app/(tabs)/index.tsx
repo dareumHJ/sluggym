@@ -7,6 +7,8 @@ import { Card, SectionLabel } from '../../src/components/primitives';
 import { OccupancyBar, PopularTimes } from '../../src/components/Occupancy';
 import { AnimatedSection } from '../../src/components/AnimatedSection';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { busiestHourlyWindow } from '../../src/lib/headcountHistory';
+import { useHeadcountHistory } from '../../src/hooks/useHeadcountHistory';
 import { useLiveOccupancy } from '../../src/hooks/useLiveOccupancy';
 import { HOURLY, ZONES } from '../../src/data/mock';
 
@@ -23,10 +25,13 @@ export default function HomeScreen() {
   const t = useTheme();
   const { user } = useAuth();
   const { data, error, loading, refreshing } = useLiveOccupancy();
+  const headcountHistory = useHeadcountHistory();
   const displayName = user?.name ?? user?.email?.split('@')[0] ?? 'Athlete';
   const firstName = displayName.split(' ')[0];
   const hour = new Date().getHours();
   const occupancyCapacity = 150;
+  const popularTimesData = headcountHistory.empty ? HOURLY : headcountHistory.popularTimes;
+  const busiestHour = busiestHourlyWindow(headcountHistory.buckets);
 
   return (
       <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ paddingBottom: 120 }}>
@@ -90,9 +95,27 @@ export default function HomeScreen() {
       <AnimatedSection delay={120} style={{ paddingHorizontal: Space.lg, marginBottom: Space.lg }}>
         <SectionLabel>Popular Times · Today</SectionLabel>
         <Card>
-          <PopularTimes data={HOURLY} currentHour={hour} />
+          {headcountHistory.loading ? (
+            <View style={{ alignItems: 'center', gap: Space.sm, marginBottom: Space.md }}>
+              <ActivityIndicator color={t.primary} />
+              <Text style={{ color: t.textSecondary, fontSize: Size.sm }}>Loading headcount history…</Text>
+            </View>
+          ) : null}
+          {headcountHistory.error ? (
+            <Text style={{ color: t.warning, fontSize: Size.xs, marginBottom: Space.sm, textAlign: 'center' }}>
+              Headcount history unavailable; showing fallback trends.
+            </Text>
+          ) : null}
+          {!headcountHistory.loading && !headcountHistory.error && headcountHistory.empty ? (
+            <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginBottom: Space.sm, textAlign: 'center' }}>
+              Not enough historical samples yet; showing safe fallback trends.
+            </Text>
+          ) : null}
+          <PopularTimes data={popularTimesData} currentHour={hour} />
           <Text style={{ color: t.textMuted, fontSize: Size.xs, marginTop: Space.md, textAlign: 'center' }}>
-            Typically busy between 5–7pm
+            {headcountHistory.empty || busiestHour === null
+              ? 'Typically busy between 5–7pm'
+              : `Busiest recent hour: ${busiestHour}:00`}
           </Text>
         </Card>
       </AnimatedSection>
