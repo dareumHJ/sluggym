@@ -48,7 +48,6 @@ def main():
         supabase.table("gym_headcount_history").insert({
             "gym_id": GYM_ID,
             "count": count,
-            "capacity": None,
             "source": "sluggym_backend",
             "sampled_at": sampled_at,
         }).execute()
