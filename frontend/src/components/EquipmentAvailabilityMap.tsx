@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Radius, Size, Space, useTheme, withAlpha } from '../constants/theme';
 import { Button, Card, SectionLabel } from './primitives';
 import { useEquipmentMap } from '../hooks/useEquipmentMap';
@@ -38,7 +38,7 @@ export function EquipmentAvailabilityMap() {
   const zones = useMemo(() => buildEquipmentMapZones(equipment, statuses), [equipment, statuses]);
   const floorZones = useMemo(() => zones.filter((zone) => zone.floor === floor), [floor, zones]);
   const selectedZone = useMemo(
-    () => floorZones.find((zone) => zone.id === selectedZoneId) ?? floorZones[0] ?? null,
+    () => floorZones.find((zone) => zone.id === selectedZoneId) ?? null,
     [floorZones, selectedZoneId],
   );
 
@@ -134,10 +134,11 @@ export function EquipmentAvailabilityMap() {
         <View style={{ position: 'relative', height: 420, borderRadius: Radius.xl, backgroundColor: t.bg, borderWidth: 2, borderColor: t.text, overflow: 'hidden' }}>
           {floorZones.map((zone) => {
             const palette = statusPalette(zone.status, zone.color);
-            const isSelected = selectedZone?.id === zone.id;
             return zone.areas.map((area, index) => (
               <Pressable
                 key={`${zone.id}:${index}`}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${zone.name} equipment popup`}
                 onPress={() => setSelectedZoneId(zone.id)}
                 style={{
                   position: 'absolute',
@@ -147,8 +148,8 @@ export function EquipmentAvailabilityMap() {
                   height: `${area.height}%`,
                   borderRadius: 2,
                   backgroundColor: zone.color,
-                  borderWidth: isSelected ? 3 : 1,
-                  borderColor: isSelected ? palette.border : withAlpha('#111111', 0.55),
+                  borderWidth: 1,
+                  borderColor: withAlpha('#111111', 0.55),
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
@@ -165,7 +166,13 @@ export function EquipmentAvailabilityMap() {
           {floorLegend(floorZones).map((zone) => {
             const palette = statusPalette(zone.status, zone.color);
             return (
-              <Pressable key={zone.id} onPress={() => setSelectedZoneId(zone.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}>
+              <Pressable
+                key={zone.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${zone.name} equipment popup`}
+                onPress={() => setSelectedZoneId(zone.id)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}
+              >
                 <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: zone.color, alignItems: 'center', justifyContent: 'center' }}>
                   <Text style={{ color: '#FFFFFF', fontSize: Size.sm, fontWeight: '900' }}>{zone.zoneNumber}</Text>
                 </View>
@@ -180,44 +187,62 @@ export function EquipmentAvailabilityMap() {
       </Card>
 
       {selectedZone ? (
-        <Card style={{ gap: Space.sm }}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: t.text, fontSize: Size.lg, fontWeight: '800' }}>{selectedZone.name}</Text>
-              <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4 }}>
-                {selectedZone.availableCount} open · {selectedZone.totalCount} mapped stations
-              </Text>
-            </View>
-            <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full, backgroundColor: withAlpha(selectedZone.color, 0.14) }}>
-              <Text style={{ color: selectedZone.color, fontSize: Size.sm, fontWeight: '800' }}>{floor}</Text>
-            </View>
-          </View>
+        <Modal
+          transparent
+          animationType="fade"
+          visible={selectedZone !== null}
+          onRequestClose={() => setSelectedZoneId(null)}
+        >
+          <View style={{ flex: 1, padding: Space.lg, backgroundColor: withAlpha('#000000', 0.62), justifyContent: 'center' }}>
+            <Card style={{ maxHeight: '78%', gap: Space.md }}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: t.text, fontSize: Size.lg, fontWeight: '800' }}>{selectedZone.name}</Text>
+                  <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4 }}>
+                    {selectedZone.availableCount} open · {selectedZone.totalCount} mapped stations
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close equipment zone popup"
+                  onPress={() => setSelectedZoneId(null)}
+                  style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.full, backgroundColor: t.surface2 }}
+                >
+                  <Text style={{ color: t.text, fontSize: Size.sm, fontWeight: '900' }}>✕</Text>
+                </Pressable>
+              </View>
 
-          {selectedZone.equipment.length === 0 ? (
-            <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
-              No live equipment rows are mapped to this zone yet. For v1, this zone stays visible as a grey fallback.
-            </Text>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Space.sm }}>
-              {selectedZone.equipment.map((item) => {
-                const status = statuses[item.id] ?? 'unknown';
-                const palette = statusPalette(status, selectedZone.color);
-                return (
-                  <View key={item.id} style={{ minWidth: 168, padding: Space.md, borderRadius: Radius.lg, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.border }}>
-                    <Text style={{ color: t.text, fontSize: Size.sm, fontWeight: '800' }}>{item.name}</Text>
-                    <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 18 }}>{item.category}</Text>
-                    {item.description ? (
-                      <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 8, lineHeight: 18 }}>{item.description}</Text>
-                    ) : null}
-                    <Text style={{ color: palette.text, fontSize: Size.sm, fontWeight: '800', marginTop: 10 }}>
-                      {status === 'free' ? 'Available now' : status === 'occupied' ? 'Currently occupied' : 'Status unavailable'}
-                    </Text>
-                  </View>
-                );
-              })}
-            </ScrollView>
-          )}
-        </Card>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.full, alignSelf: 'flex-start', backgroundColor: withAlpha(selectedZone.color, 0.14) }}>
+                <Text style={{ color: selectedZone.color, fontSize: Size.sm, fontWeight: '800' }}>{floor}</Text>
+              </View>
+
+              {selectedZone.equipment.length === 0 ? (
+                <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
+                  No live equipment rows are mapped to this zone yet. For v1, this zone stays visible as a grey fallback.
+                </Text>
+              ) : (
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: Space.sm }}>
+                  {selectedZone.equipment.map((item) => {
+                    const status = statuses[item.id] ?? 'unknown';
+                    const palette = statusPalette(status, selectedZone.color);
+                    return (
+                      <View key={item.id} style={{ padding: Space.md, borderRadius: Radius.lg, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.border }}>
+                        <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{item.name}</Text>
+                        <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 18 }}>{item.category}</Text>
+                        {item.description ? (
+                          <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 8, lineHeight: 18 }}>{item.description}</Text>
+                        ) : null}
+                        <Text style={{ color: palette.text, fontSize: Size.sm, fontWeight: '800', marginTop: 10 }}>
+                          {status === 'free' ? 'Available now' : status === 'occupied' ? 'Currently occupied' : 'Status unavailable'}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </Card>
+          </View>
+        </Modal>
       ) : null}
     </View>
   );
