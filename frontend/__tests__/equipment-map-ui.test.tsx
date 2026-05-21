@@ -14,6 +14,7 @@ function mockHook(overrides: Partial<ReturnType<typeof useEquipmentMap>> = {}) {
     equipment: [
       { id: '1', name: 'Squat Rack', category: 'Free Weights', location: '1st floor', quantity: 1, description: 'Heavy compound station' },
       { id: '2', name: 'Bench Press', category: 'Free Weights', location: '1st floor', quantity: 0, description: 'Flat bench press setup' },
+      { id: '4', name: 'Leg Press', category: 'Plate Loaded', location: '1st floor', quantity: 1, description: 'Plate-loaded lower-body station' },
       { id: '3', name: 'Treadmill 1', category: 'Cardio', location: '2nd floor', quantity: 2, description: 'Cardio line' },
     ],
     statuses: { '1': 'free', '2': 'occupied', '3': 'free' },
@@ -49,15 +50,32 @@ describe('EquipmentAvailabilityMap', () => {
     expect(screen.getByText('Equipment Availability Map')).toBeTruthy();
     expect(screen.getAllByText('Power Rack Zone').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Bench Zone').length).toBeGreaterThan(0);
-    expect(screen.getByText('1 of 2 mapped stations currently open')).toBeTruthy();
+    expect(screen.getAllByText('Plate-loaded Zone').length).toBeGreaterThan(0);
+    expect(screen.getByText('1 of 3 mapped stations currently open')).toBeTruthy();
+    expect(screen.getByText('1/1 · Open')).toBeTruthy();
+    expect(screen.getByText('0/1 · Busy')).toBeTruthy();
+    expect(screen.getByText('0/1 · Unknown')).toBeTruthy();
     expect(screen.queryByText('Squat Rack')).toBeNull();
 
     fireEvent.press(screen.getAllByLabelText('Open Power Rack Zone equipment popup')[0]);
     expect(screen.getByText('Squat Rack')).toBeTruthy();
     expect(screen.getByText('Heavy compound station')).toBeTruthy();
+    expect(screen.getByText('Available now')).toBeTruthy();
 
     fireEvent.press(screen.getByLabelText('Close equipment zone popup'));
     expect(screen.queryByText('Squat Rack')).toBeNull();
+
+    fireEvent.press(screen.getAllByLabelText('Open Bench Zone equipment popup')[0]);
+    expect(screen.getByText('Bench Press')).toBeTruthy();
+    expect(screen.getByText('Currently occupied')).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText('Close equipment zone popup'));
+
+    fireEvent.press(screen.getAllByLabelText('Open Plate-loaded Zone equipment popup')[0]);
+    expect(screen.getByText('Leg Press')).toBeTruthy();
+    expect(screen.getByText('Status unavailable')).toBeTruthy();
+
+    fireEvent.press(screen.getByLabelText('Close equipment zone popup'));
 
     fireEvent.press(screen.getByText('2nd floor'));
     expect(screen.getByText('Cardio Zone')).toBeTruthy();
