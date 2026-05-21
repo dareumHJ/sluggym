@@ -21,7 +21,6 @@ jobs:
 
       - name: Poll and persist occupancy
         env:
-          SLUGRUSH_API_KEY: ${{ secrets.SLUGRUSH_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python scripts/poll_occupancy.py
