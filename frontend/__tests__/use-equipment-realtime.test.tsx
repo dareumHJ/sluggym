@@ -131,6 +131,62 @@ describe('useEquipment realtime subscription', () => {
 
     await waitFor(() => expect(result.current.error).toBe('Network unavailable'));
     expect(result.current.equipment[0]?.quantity).toBe(2);
+    expect(result.current.connectionState).toBe('reconnecting');
+  });
+
+  it('explicitly re-subscribes with backoff after a realtime timeout', async () => {
+    jest.useFakeTimers();
+    fetchQueue = [
+      { data: [benchRow(2)], error: null },
+      { data: [benchRow(2)], error: null },
+    ];
+
+    const { result } = renderHook(() => useEquipment());
+
+    await waitFor(() => expect(result.current.equipment[0]?.quantity).toBe(2));
+    act(() => {
+      subscriptionStatusHandler?.('SUBSCRIBED');
+    });
+    expect(result.current.connectionState).toBe('live');
+    expect(channelMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      subscriptionStatusHandler?.('TIMED_OUT');
+    });
+
+    await waitFor(() => expect(result.current.connectionState).toBe('reconnecting'));
+    expect(result.current.equipment[0]?.quantity).toBe(2);
+
+    act(() => {
+      jest.advanceTimersByTime(1_000);
+    });
+
+    await waitFor(() => expect(channelMock).toHaveBeenCalledTimes(2));
+    expect(removeChannelMock).toHaveBeenCalledTimes(1);
+
+    jest.useRealTimers();
+  });
+
+  it('surfaces offline state when the realtime channel closes', async () => {
+    fetchQueue = [
+      { data: [benchRow(2)], error: null },
+      { data: [benchRow(2)], error: null },
+    ];
+
+    const { result } = renderHook(() => useEquipment());
+
+    await waitFor(() => expect(result.current.equipment[0]?.quantity).toBe(2));
+    act(() => {
+      subscriptionStatusHandler?.('SUBSCRIBED');
+    });
+    await waitFor(() => expect(result.current.connectionState).toBe('live'));
+
+    act(() => {
+      subscriptionStatusHandler?.('CLOSED');
+    });
+
+    await waitFor(() => expect(result.current.connectionState).toBe('offline'));
+    expect(result.current.equipment[0]?.quantity).toBe(2);
   });
 
   it('refreshes when the app returns to the foreground', async () => {

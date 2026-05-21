@@ -32,7 +32,7 @@ export default function SearchScreen() {
   const [exerciseEquipment, setExerciseEquipment] = useState('All');
   const [exerciseMuscle, setExerciseMuscle] = useState('All');
   const [exerciseLevel, setExerciseLevel] = useState('All');
-  const { equipment, filteredEquipment, categories, error, loading, refresh } = useEquipment(q, category);
+  const { equipment, filteredEquipment, categories, error, loading, connectionState, refresh } = useEquipment(q, category);
   const {
     exercises,
     filteredExercises,
@@ -117,6 +117,22 @@ export default function SearchScreen() {
     </Card>
   );
 
+  const renderRealtimeStatus = () => {
+    if (connectionState === 'live') {
+      return (
+        <Text style={{ color: t.success, fontSize: Size.xs, fontWeight: '800', textAlign: 'center' }}>
+          Live equipment updates connected
+        </Text>
+      );
+    }
+
+    return (
+      <Text style={{ color: t.warning, fontSize: Size.xs, fontWeight: '800', textAlign: 'center' }}>
+        {connectionState === 'reconnecting' ? 'Reconnecting live equipment updates…' : 'Live equipment updates offline'}
+      </Text>
+    );
+  };
+
   const renderFilterChips = ({ label, options, value, onChange }: FilterChipsProps) => (
     <View>
       <Text style={{ color: t.textSecondary, fontSize: Size.xs, fontWeight: '800', letterSpacing: 1.1, textTransform: 'uppercase', paddingHorizontal: Space.lg, marginTop: Space.sm }}>
@@ -179,6 +195,7 @@ export default function SearchScreen() {
 
     return (
       <>
+        {renderRealtimeStatus()}
         {error ? renderWarningBanner(error, () => void refresh()) : null}
         {loading ? <Text style={{ color: t.textSecondary, fontSize: Size.sm, textAlign: 'center' }}>Refreshing live equipment…</Text> : null}
         {filteredEquipment.map((item) => (

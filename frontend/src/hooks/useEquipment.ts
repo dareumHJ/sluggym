@@ -17,8 +17,13 @@ interface UseEquipmentReturn {
   categories: string[];
   loading: boolean;
   error: string | null;
+  connectionState: 'live' | 'reconnecting' | 'offline';
   refresh: () => Promise<void>;
+  simulateRealtimeDisconnect: () => void;
 }
+
+const REALTIME_RECONNECT_BASE_MS = 1_000;
+const REALTIME_RECONNECT_MAX_MS = 30_000;
 
 interface EquipmentRow {
   id: number | string;
@@ -46,7 +51,12 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
   const [equipment, setEquipment] = useState<EquipmentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [connectionState, setConnectionState] = useState<'live' | 'reconnecting' | 'offline'>('reconnecting');
   const isMountedRef = useRef(true);
+  const connectionStateRef = useRef<'live' | 'reconnecting' | 'offline'>('reconnecting');
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptRef = useRef(0);
 
   const refresh = useCallback(async () => {
     if (isMountedRef.current) {
@@ -72,38 +82,99 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
     setLoading(false);
   }, []);
 
+  const updateConnectionState = useCallback((nextState: 'live' | 'reconnecting' | 'offline') => {
+    connectionStateRef.current = nextState;
+    setConnectionState(nextState);
+  }, []);
+
   useEffect(() => {
     isMountedRef.current = true;
     void refresh();
 
-    const channel = supabase
-      .channel('gym-equipment-ui-refresh')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'gym_equipment' },
-        () => {
-          void refresh();
-        },
-      )
-      .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setError('Realtime connection interrupted. Pulling latest equipment data…');
-          void refresh();
-        }
-      });
+    const clearReconnectTimer = () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+    };
+
+    const removeCurrentChannel = () => {
+      const channel = channelRef.current;
+      channelRef.current = null;
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+    };
+
+    const subscribeToEquipment = () => {
+      if (!isMountedRef.current) return;
+
+      removeCurrentChannel();
+
+      const channel = supabase
+        .channel('gym-equipment-ui-refresh')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'gym_equipment' },
+          () => {
+            void refresh();
+          },
+        )
+        .subscribe((status) => {
+          if (!isMountedRef.current) return;
+
+          if (status === 'SUBSCRIBED') {
+            reconnectAttemptRef.current = 0;
+            updateConnectionState('live');
+            return;
+          }
+
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            updateConnectionState(status === 'CLOSED' ? 'offline' : 'reconnecting');
+            setError('Realtime connection interrupted. Pulling latest equipment data…');
+            void refresh();
+
+            clearReconnectTimer();
+            const delay = Math.min(
+              REALTIME_RECONNECT_BASE_MS * 2 ** reconnectAttemptRef.current,
+              REALTIME_RECONNECT_MAX_MS,
+            );
+            reconnectAttemptRef.current += 1;
+            reconnectTimerRef.current = setTimeout(() => {
+              updateConnectionState('reconnecting');
+              subscribeToEquipment();
+            }, delay);
+          }
+        });
+
+      channelRef.current = channel;
+    };
+
+    subscribeToEquipment();
 
     const appStateSubscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
+        if (connectionStateRef.current !== 'live') {
+          reconnectAttemptRef.current = 0;
+          clearReconnectTimer();
+          subscribeToEquipment();
+        }
         void refresh();
       }
     });
 
     return () => {
       isMountedRef.current = false;
+      clearReconnectTimer();
       appStateSubscription.remove();
-      void supabase.removeChannel(channel);
+      removeCurrentChannel();
     };
-  }, [refresh]);
+  }, [refresh, updateConnectionState]);
+
+  const simulateRealtimeDisconnect = useCallback(() => {
+    updateConnectionState('offline');
+    setError('Realtime connection interrupted. Pulling latest equipment data…');
+  }, [updateConnectionState]);
 
   const categories = useMemo(
     () => ['All', ...Array.from(new Set(equipment.map((item) => item.category).filter(Boolean))).sort((a, b) => a.localeCompare(b))],
@@ -138,6 +209,8 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
     categories,
     loading,
     error,
+    connectionState,
     refresh,
+    simulateRealtimeDisconnect,
   };
 }
