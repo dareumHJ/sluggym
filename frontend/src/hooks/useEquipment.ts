@@ -77,7 +77,7 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
     void refresh();
 
     const channel = supabase
-      .channel('gym-equipment-ui-refresh')
+      .channel(`gym-equipment-ui-refresh-${Date.now()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'gym_equipment' },
