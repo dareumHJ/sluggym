@@ -41,7 +41,9 @@ function setupMocks(overrides: { equipment?: Partial<EquipmentHookReturn>; exerc
     categories: ['All', 'Free Weights'],
     loading: false,
     error: null,
+    connectionState: 'live',
     refresh: jest.fn(async () => undefined),
+    simulateRealtimeDisconnect: jest.fn(),
     ...overrides.equipment,
   });
 
@@ -142,7 +144,9 @@ describe('SearchScreen', () => {
       categories: ['All', 'Free Weights'],
       loading: false,
       error: null,
+      connectionState: 'live',
       refresh: jest.fn(async () => undefined),
+      simulateRealtimeDisconnect: jest.fn(),
     });
 
     // Re-render the component with the new hook state
@@ -171,5 +175,17 @@ describe('SearchScreen', () => {
 
     fireEvent.press(screen.getByText('Retry'));
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows realtime connection status for reconnecting equipment updates', () => {
+    setupMocks({
+      equipment: {
+        connectionState: 'reconnecting',
+      },
+    });
+
+    render(<SearchScreen />);
+
+    expect(screen.getByText('Reconnecting live equipment updates…')).toBeTruthy();
   });
 });
