@@ -71,7 +71,7 @@ export function OccupancyBar({ count, capacity }: { count: number; capacity: num
 
 export function PopularTimes({ data, currentHour }: { data: number[]; currentHour: number }) {
   const t = useTheme();
-  const max = Math.max(...data);
+  const max = Math.max(1, ...data);
   const w = 280, h = 80, gap = 2;
   const barW = (w - gap*(data.length-1)) / data.length;
   return (

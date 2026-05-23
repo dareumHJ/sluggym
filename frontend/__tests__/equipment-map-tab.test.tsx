@@ -95,6 +95,17 @@ describe('Equipment map tab', () => {
     expect(screen.getByText('Loading the equipment map…')).toBeTruthy();
   });
 
+  it('keeps the error state available in the dedicated tab', () => {
+    const refresh = jest.fn(async () => undefined);
+    mockMapHook({ equipment: [], statuses: {}, globalState: 'error', refresh });
+
+    render(<EquipmentMapScreen />);
+    fireEvent.press(screen.getByText('Retry'));
+
+    expect(screen.getByText('Could not load the equipment map')).toBeTruthy();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the empty state available in the dedicated tab', () => {
     mockMapHook({ equipment: [], statuses: {}, globalState: 'empty' });
 

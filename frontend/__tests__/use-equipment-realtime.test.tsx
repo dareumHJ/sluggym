@@ -102,7 +102,7 @@ describe('useEquipment realtime subscription', () => {
     const { result } = renderHook(() => useEquipment());
 
     await waitFor(() => expect(result.current.equipment[0]?.quantity).toBe(2));
-    expect(channelMock).toHaveBeenCalledWith('gym-equipment-ui-refresh');
+    expect(channelMock).toHaveBeenCalledWith(expect.stringMatching(/^gym-equipment-ui-refresh-\d+$/));
     expect(realtimeHandler).toBeDefined();
 
     act(() => {
