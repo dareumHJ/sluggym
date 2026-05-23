@@ -16,6 +16,15 @@ jest.mock('../src/hooks/useWorkouts', () => ({
   useWorkouts: jest.fn(),
 }));
 
+jest.mock('../src/hooks/useWeeklyCongestion', () => ({
+  useWeeklyCongestion: jest.fn().mockReturnValue({
+    data: [],
+    loading: false,
+    error: null,
+    refresh: jest.fn(),
+  }),
+}));
+
 const mockUseWorkouts = useWorkouts as jest.MockedFunction<typeof useWorkouts>;
 const mockPush = router.push as jest.Mock;
 

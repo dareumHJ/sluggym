@@ -6,9 +6,10 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme, Space, Size, withAlpha } from '../../src/constants/theme';
 import { Button, Card, SectionLabel, StatTile } from '../../src/components/primitives';
 import { AnimatedSection } from '../../src/components/AnimatedSection';
-import { PR_HISTORY, WEEKLY_CONGESTION } from '../../src/data/mock';
+import { PR_HISTORY } from '../../src/data/mock';
 import { WeeklyCongestionHeatmap } from '../../src/components/WeeklyCongestionHeatmap';
 import { useWorkouts, type Workout } from '../../src/hooks/useWorkouts';
+import { useWeeklyCongestion } from '../../src/hooks/useWeeklyCongestion';
 
 const VOLUME_WEEKS = [3200, 3850, 4100, 4520, 4200, 5100, 4820];
 
@@ -61,10 +62,17 @@ function workoutMeta(workout: Workout) {
 export default function StatsScreen() {
   const t = useTheme();
   const { workouts, loading, error, refresh } = useWorkouts();
+  const {
+    data: congestionData,
+    loading: congestionLoading,
+    error: congestionError,
+    refresh: refreshCongestion,
+  } = useWeeklyCongestion('East Gym');
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    void refreshCongestion();
+  }, [refresh, refreshCongestion]);
 
   const summary = useMemo(
     () => ({
@@ -100,7 +108,19 @@ export default function StatsScreen() {
       </AnimatedSection>
 
       <AnimatedSection delay={240} style={{ marginTop: Space.xl }}>
-        <WeeklyCongestionHeatmap data={[...WEEKLY_CONGESTION]} />
+        {congestionLoading && congestionData.length === 0 ? (
+          <Card style={{ alignItems: 'center', gap: Space.sm }}>
+            <ActivityIndicator color={t.primary} />
+            <Text style={{ color: t.textSecondary, fontSize: Size.sm }}>Loading weekly congestion data…</Text>
+          </Card>
+        ) : congestionError ? (
+          <Card style={{ gap: Space.sm }}>
+            <Text style={{ color: t.error, fontSize: Size.sm, fontWeight: '700' }}>{congestionError}</Text>
+            <Button title="Retry" variant="secondary" onPress={() => void refreshCongestion()} />
+          </Card>
+        ) : (
+          <WeeklyCongestionHeatmap data={congestionData} />
+        )}
       </AnimatedSection>
 
       <AnimatedSection delay={320} style={{ marginTop: Space.xl }}>
@@ -127,7 +147,7 @@ export default function StatsScreen() {
       <AnimatedSection delay={400} style={{ marginTop: Space.xl }}>
         <SectionLabel
           action={
-            <Pressable onPress={() => void refresh()}>
+            <Pressable onPress={() => { void refresh(); void refreshCongestion(); }}>
               <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '800' }}>Refresh</Text>
             </Pressable>
           }
