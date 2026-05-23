@@ -1,8 +1,6 @@
 name: Poll Gym Occupancy
 
 on:
-  schedule:
-    - cron: '11,41 * * * *'  # every 30 minutes at 11 and 41 past the hour
   workflow_dispatch: # can run manually from GitHub Actions tab
 
 jobs:
