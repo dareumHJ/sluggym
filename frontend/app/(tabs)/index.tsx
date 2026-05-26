@@ -6,6 +6,7 @@ import { useTheme, Space, Size, withAlpha } from '../../src/constants/theme';
 import { Card, SectionLabel } from '../../src/components/primitives';
 import { OccupancyBar, PopularTimes } from '../../src/components/Occupancy';
 import { AnimatedSection } from '../../src/components/AnimatedSection';
+import { OptimalTimeRecommendation } from '../../src/components/OptimalTimeRecommendation';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { busiestHourlyWindow } from '../../src/lib/headcountHistory';
 import { useHeadcountHistory } from '../../src/hooks/useHeadcountHistory';
@@ -120,7 +121,11 @@ export default function HomeScreen() {
         </Card>
       </AnimatedSection>
 
-      <AnimatedSection delay={120} style={{ paddingHorizontal: Space.lg, marginBottom: Space.lg }}>
+      <AnimatedSection delay={180} style={{ paddingHorizontal: Space.lg, marginBottom: Space.lg }}>
+        <OptimalTimeRecommendation />
+      </AnimatedSection>
+
+      <AnimatedSection delay={240} style={{ paddingHorizontal: Space.lg, marginBottom: Space.lg }}>
         <SectionLabel>By Zone</SectionLabel>
         <View style={{ gap: Space.sm }}>
           {ZONES.map((zone) => {

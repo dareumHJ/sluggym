@@ -133,7 +133,6 @@ export function EquipmentAvailabilityMap() {
 
         <View style={{ position: 'relative', height: 420, borderRadius: Radius.xl, backgroundColor: t.bg, borderWidth: 2, borderColor: t.text, overflow: 'hidden' }}>
           {floorZones.map((zone) => {
-            const palette = statusPalette(zone.status, zone.color);
             return zone.areas.map((area, index) => (
               <Pressable
                 key={`${zone.id}:${index}`}
