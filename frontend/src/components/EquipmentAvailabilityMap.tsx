@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Radius, Size, Space, useTheme, withAlpha } from '../constants/theme';
 import { Button, Card, SectionLabel } from './primitives';
+import { EquipmentVisual } from './EquipmentVisual';
 import { useEquipmentMap } from '../hooks/useEquipmentMap';
 import { buildEquipmentMapZones, type FloorName, type EquipmentMapZoneSummary } from '../data/equipmentMap';
 
@@ -133,7 +134,6 @@ export function EquipmentAvailabilityMap() {
 
         <View style={{ position: 'relative', height: 420, borderRadius: Radius.xl, backgroundColor: t.bg, borderWidth: 2, borderColor: t.text, overflow: 'hidden' }}>
           {floorZones.map((zone) => {
-            const palette = statusPalette(zone.status, zone.color);
             return zone.areas.map((area, index) => (
               <Pressable
                 key={`${zone.id}:${index}`}
@@ -227,8 +227,13 @@ export function EquipmentAvailabilityMap() {
                     const palette = statusPalette(status, selectedZone.color);
                     return (
                       <View key={item.id} style={{ padding: Space.md, borderRadius: Radius.lg, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.border }}>
-                        <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{item.name}</Text>
-                        <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 18 }}>{item.category}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
+                          <EquipmentVisual name={item.name} category={item.category} size="sm" color={selectedZone.color} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{item.name}</Text>
+                            <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 18 }}>{item.category}</Text>
+                          </View>
+                        </View>
                         {item.description ? (
                           <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 8, lineHeight: 18 }}>{item.description}</Text>
                         ) : null}
