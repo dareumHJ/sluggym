@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useTheme, Space, Radius, Size, withAlpha } from '../../src/constants/theme';
 import { Button, Card } from '../../src/components/primitives';
+import { EquipmentIconLegend, EquipmentVisual } from '../../src/components/EquipmentVisual';
 import { useEquipment } from '../../src/hooks/useEquipment';
 import { useExerciseCatalog } from '../../src/hooks/useExerciseCatalog';
 
@@ -196,11 +197,13 @@ export default function SearchScreen() {
     return (
       <>
         {renderRealtimeStatus()}
+        <EquipmentIconLegend theme={t} />
         {error ? renderWarningBanner(error, () => void refresh()) : null}
         {loading ? <Text style={{ color: t.textSecondary, fontSize: Size.sm, textAlign: 'center' }}>Refreshing live equipment…</Text> : null}
         {filteredEquipment.map((item) => (
           <Card key={item.id} style={{ gap: Space.xs }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.md }}>
+              <EquipmentVisual name={item.name} category={item.category} />
               <View style={{ flex: 1 }}>
                 <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{item.name}</Text>
                 <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 20 }}>
