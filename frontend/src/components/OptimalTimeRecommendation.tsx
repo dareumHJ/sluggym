@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { Radius, Size, Space, useTheme, withAlpha } from '../constants/theme';
 import { Card, SectionLabel } from './primitives';
 
@@ -14,6 +14,8 @@ export type TimeRecommendation = {
 
 type OptimalTimeRecommendationProps = {
   recommendations?: TimeRecommendation[];
+  loading?: boolean;
+  error?: string | null;
   onRefresh?: () => void;
 };
 
@@ -42,7 +44,7 @@ function congestionCopy(congestion: TimeRecommendation['congestion']) {
   return { label: 'Busy', tone: 'error' as const };
 }
 
-export function OptimalTimeRecommendation({ recommendations = MOCK_TIME_RECOMMENDATIONS, onRefresh }: OptimalTimeRecommendationProps) {
+export function OptimalTimeRecommendation({ recommendations = MOCK_TIME_RECOMMENDATIONS, loading = false, error = null, onRefresh }: OptimalTimeRecommendationProps) {
   const t = useTheme();
   const best = recommendations[0] ?? null;
 
@@ -61,7 +63,22 @@ export function OptimalTimeRecommendation({ recommendations = MOCK_TIME_RECOMMEN
       </SectionLabel>
 
       <Card style={{ gap: Space.md }}>
-        {best ? (
+        {loading ? (
+          <View style={{ alignItems: 'center', gap: Space.sm, paddingVertical: Space.md }}>
+            <ActivityIndicator color={t.primary} />
+            <Text style={{ color: t.textSecondary, fontSize: Size.sm, fontWeight: '700' }}>Loading recommendations…</Text>
+          </View>
+        ) : error ? (
+          <View style={{ gap: Space.sm }}>
+            <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '900' }}>Recommendation unavailable</Text>
+            <Text style={{ color: t.warning, fontSize: Size.sm, lineHeight: 20 }}>{error}</Text>
+            {onRefresh ? (
+              <Pressable onPress={onRefresh} style={{ alignSelf: 'flex-start', paddingHorizontal: Space.md, paddingVertical: Space.sm, borderRadius: Radius.full, backgroundColor: withAlpha(t.primary, 0.12) }}>
+                <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '900' }}>Try again</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : best ? (
           <View style={{ gap: Space.md }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
               <View style={{ flex: 1 }}>
@@ -105,10 +122,6 @@ export function OptimalTimeRecommendation({ recommendations = MOCK_TIME_RECOMMEN
                 );
               })}
             </View>
-
-            <Text style={{ color: t.textMuted, fontSize: Size.xs, lineHeight: 18 }}>
-              UI-only preview. Scoring and data wiring are intentionally left for the recommendation helper/connect issues.
-            </Text>
           </View>
         ) : (
           <View style={{ gap: Space.sm }}>
