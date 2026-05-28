@@ -319,6 +319,12 @@ export default function WorkoutScreen() {
             icon={workoutLoading ? <ActivityIndicator color={t.onPrimary} /> : undefined}
             onPress={startNewSession}
           />
+          <Button
+            title="Build saved routine"
+            variant="secondary"
+            size="lg"
+            onPress={() => router.push('/routines')}
+          />
         </Card>
       </View>
     );
