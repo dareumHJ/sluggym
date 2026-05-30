@@ -1,13 +1,14 @@
-// app/(tabs)/workout.tsx — Hevy-style logger with Supabase workout/exercise persistence
+// app/(tabs)/workout.tsx — multi-routine workout logger with Supabase persistence
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme, Space, Radius, Size, withAlpha } from '../../src/constants/theme';
 import { Card, Button, StatTile } from '../../src/components/primitives';
 import { useEquipment, type EquipmentListItem } from '../../src/hooks/useEquipment';
 import { useExerciseCatalog, type ExerciseCatalogItem } from '../../src/hooks/useExerciseCatalog';
 import { useExercises, type WorkoutExerciseWithSets } from '../../src/hooks/useExercises';
 import { useWorkouts } from '../../src/hooks/useWorkouts';
+import { useRoutines, type Routine } from '../../src/hooks/useRoutines';
 import { validateWorkoutReps, validateWorkoutSetCount, validateWorkoutWeight } from '../../src/lib/validation';
 
 function fmt(sec: number) { const m = Math.floor(sec/60), s = sec%60; return `${m}:${s.toString().padStart(2,'0')}`; }
@@ -46,6 +47,22 @@ function pretty(value: string) {
     .filter(Boolean)
     .map((piece) => piece.charAt(0).toUpperCase() + piece.slice(1))
     .join(' ');
+}
+
+function formatLastUsed(lastUsedAt: string | null): string {
+  if (!lastUsedAt) return 'Never used';
+  const date = new Date(lastUsedAt);
+  if (isNaN(date.getTime())) return 'Never used';
+
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffMin = Math.round(diffMs / 60_000);
+  if (diffMin < 60) return diffMin <= 1 ? 'Just now' : `${diffMin}m ago`;
+  const diffHour = Math.round(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}h ago`;
+  const diffDay = Math.round(diffHour / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return date.toLocaleDateString();
 }
 
 function matchEquipmentForExercise(exercise: ExerciseCatalogItem, equipment: EquipmentListItem[]) {
@@ -100,6 +117,11 @@ function createRoutineWorkoutExercise(
 
 export default function WorkoutScreen() {
   const t = useTheme();
+  const { id: routineIdParam } = useLocalSearchParams<{ id?: string }>();
+  const selectedRoutineId =
+    typeof routineIdParam === 'string' && routineIdParam.length > 0 ? routineIdParam : null;
+
+  const { routines, loading: routinesLoading, error: routinesError, refresh: refreshRoutines } = useRoutines();
   const { workouts, activeWorkout, createWorkout, endWorkout, loading: workoutLoading, error: workoutError } = useWorkouts();
   const {
     addExercise: persistExercise,
@@ -136,6 +158,12 @@ export default function WorkoutScreen() {
   const [routineError, setRoutineError] = useState<string | null>(null);
   const endingInFlight = ending || exerciseSaving;
 
+  // If a workout is active, pin selection to its routine_id (so navigation can't lose context mid-workout)
+  const activeRoutineId = activeWorkout?.routine_id ?? selectedRoutineId;
+  const selectedRoutine: Routine | null = activeRoutineId
+    ? routines.find((routine) => routine.id === activeRoutineId) ?? null
+    : null;
+
   // workout timer
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -155,10 +183,16 @@ export default function WorkoutScreen() {
   }, [restActive]);
 
   const elapsed = Math.floor((now - startedAt) / 1000);
-  const lastCompletedWorkout = useMemo(
-    () => workouts.find((workout) => workout.ended_at !== null) ?? null,
-    [workouts],
-  );
+
+  // Last completed workout *for this routine only*
+  const lastCompletedWorkout = useMemo(() => {
+    if (!activeRoutineId) return null;
+    return (
+      workouts.find(
+        (workout) => workout.ended_at !== null && workout.routine_id === activeRoutineId,
+      ) ?? null
+    );
+  }, [workouts, activeRoutineId]);
 
   const exerciseMatches = useMemo(
     () => filteredExercises.slice(0, 40).map((exercise) => ({ exercise, equipment: matchEquipmentForExercise(exercise, equipment) })),
@@ -208,9 +242,12 @@ export default function WorkoutScreen() {
   );
 
   const routineGoal = useMemo(() => {
+    if (selectedRoutine?.goal) return selectedRoutine.goal;
     const muscles = lastCompletedWorkout?.target_muscle ?? [];
     return muscles.length > 0 ? muscles.join(', ') : DEFAULT_ROUTINE_GOAL;
-  }, [lastCompletedWorkout?.target_muscle]);
+  }, [selectedRoutine, lastCompletedWorkout?.target_muscle]);
+
+  const routineDisplayName = selectedRoutine?.name ?? DEFAULT_WORKOUT_NAME;
 
   const routineSetCount = useMemo(
     () => lastRoutineExercises.reduce((sum, exercise) => sum + exercise.sets.length, 0),
@@ -236,6 +273,11 @@ export default function WorkoutScreen() {
   );
 
   const startRoutineSession = useCallback(async () => {
+    if (!selectedRoutine) {
+      setFormMessage('Pick a routine before starting a workout.');
+      return;
+    }
+
     setFormMessage(null);
     setEndError(null);
     setTouchedFields({});
@@ -246,11 +288,15 @@ export default function WorkoutScreen() {
     setNow(Date.now());
 
     try {
-      await createWorkout({ name: DEFAULT_WORKOUT_NAME, target_muscle: lastCompletedWorkout?.target_muscle ?? [] });
+      await createWorkout({
+        name: selectedRoutine.name,
+        target_muscle: lastCompletedWorkout?.target_muscle ?? selectedRoutine.targetMuscles ?? [],
+        routine_id: selectedRoutine.id,
+      });
     } catch (error) {
       setFormMessage(getErrorMessage(error));
     }
-  }, [createWorkout, lastCompletedWorkout?.target_muscle, routineExercises]);
+  }, [createWorkout, lastCompletedWorkout?.target_muscle, routineExercises, selectedRoutine]);
 
   const addSelectedExercise = (exercise: ExerciseCatalogItem, matchedEquipment: EquipmentListItem | null) => {
     if (!matchedEquipment) {
@@ -347,6 +393,8 @@ export default function WorkoutScreen() {
       await persistCompletedExercises();
       await endWorkout(activeWorkout.id);
       setShowEndModal(false);
+      // Refresh routines so last_used_at sorts this routine to the top next time
+      void refreshRoutines();
       router.replace(`/workout-summary?durationSec=${elapsed}&sets=${totals.sets}&volume=${totals.volume}&exerciseCount=${completedExerciseCount}`);
     } catch (error) {
       setEndError(getErrorMessage(error));
@@ -382,14 +430,186 @@ export default function WorkoutScreen() {
     }));
   };
 
-  if (!activeWorkout) {
+  const handleSelectRoutine = (routine: Routine) => {
+    router.setParams({ id: routine.id });
+  };
+
+  const handleClearSelection = () => {
+    router.setParams({ id: undefined });
+  };
+
+  // ============================================================
+  // Render: No active workout, no routine selected → routine list
+  // ============================================================
+  if (!activeWorkout && !selectedRoutineId) {
     return (
-      <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: Space.lg, paddingTop: Space['4xl'], paddingBottom: 120 }}>
-        <Text style={{ color: t.textSecondary, fontSize: Size.xs, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '700', marginBottom: Space.sm }}>
-          Routine
+      <ScrollView
+        style={{ flex: 1, backgroundColor: t.bg }}
+        contentContainerStyle={{ padding: Space.lg, paddingTop: Space['4xl'], paddingBottom: 120 }}
+      >
+        <Text
+          style={{
+            color: t.textSecondary,
+            fontSize: Size.xs,
+            letterSpacing: 1.5,
+            textTransform: 'uppercase',
+            fontWeight: '700',
+            marginBottom: Space.sm,
+          }}
+        >
+          Your routines
         </Text>
         <Text style={{ color: t.text, fontSize: Size['3xl'], fontWeight: '800', letterSpacing: -0.5 }}>
-          {DEFAULT_WORKOUT_NAME}
+          Pick a routine
+        </Text>
+        <Text
+          style={{
+            color: t.textSecondary,
+            fontSize: Size.md,
+            lineHeight: 22,
+            marginTop: Space.sm,
+            marginBottom: Space.lg,
+          }}
+        >
+          Each routine builds itself from the workouts you log under it. Pick one to see its last session and start again.
+        </Text>
+
+        {routinesLoading && routines.length === 0 ? (
+          <Card style={{ alignItems: 'center', gap: Space.sm }}>
+            <ActivityIndicator color={t.primary} />
+            <Text style={{ color: t.textSecondary, fontSize: Size.sm }}>Loading your routines…</Text>
+          </Card>
+        ) : routinesError ? (
+          <Card style={{ gap: Space.sm }}>
+            <Text style={{ color: t.warning, fontSize: Size.sm, fontWeight: '800' }}>
+              Could not load routines
+            </Text>
+            <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>{routinesError}</Text>
+            <Button title="Retry" variant="secondary" onPress={() => void refreshRoutines()} />
+          </Card>
+        ) : routines.length === 0 ? (
+          <Card style={{ gap: Space.md }}>
+            <Text style={{ color: t.text, fontSize: Size.lg, fontWeight: '800' }}>No routines yet</Text>
+            <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
+              Create your first routine to start tracking your workouts. Exercises and sets will be recorded once you start a workout.
+            </Text>
+            <Button title="Create your first routine" size="lg" onPress={() => router.push('/routines')} />
+          </Card>
+        ) : (
+          <View style={{ gap: Space.sm }}>
+            {routines.map((routine) => (
+              <Card key={routine.id} style={{ gap: Space.sm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
+                  <Pressable
+                    onPress={() => handleSelectRoutine(routine)}
+                    style={{ flex: 1, gap: 4 }}
+                  >
+                    <Text style={{ color: t.text, fontSize: Size.lg, fontWeight: '800' }}>{routine.name}</Text>
+                    {routine.goal ? (
+                      <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 18 }} numberOfLines={2}>
+                        {routine.goal}
+                      </Text>
+                    ) : null}
+                    <Text style={{ color: t.textMuted, fontSize: Size.xs, marginTop: 2 }}>
+                      {formatLastUsed(routine.lastUsedAt)}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => router.push(`/routines?id=${routine.id}`)}
+                    style={{
+                      paddingHorizontal: Space.md,
+                      paddingVertical: 8,
+                      borderRadius: Radius.full,
+                      backgroundColor: withAlpha(t.primary, 0.12),
+                    }}
+                  >
+                    <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '900' }}>Edit</Text>
+                  </Pressable>
+                </View>
+              </Card>
+            ))}
+
+            <Pressable
+              onPress={() => router.push('/routines')}
+              style={{
+                marginTop: Space.sm,
+                paddingVertical: Space.md,
+                borderRadius: Radius.lg,
+                backgroundColor: t.surface2,
+                borderWidth: 1,
+                borderColor: t.borderLight,
+                borderStyle: 'dashed',
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: t.primary, fontSize: Size.sm, fontWeight: '900' }}>+ New routine</Text>
+            </Pressable>
+          </View>
+        )}
+      </ScrollView>
+    );
+  }
+
+  // =====================================================================
+  // Render: Routine selected (no active workout) → routine preview + start
+  // =====================================================================
+  if (!activeWorkout) {
+    // Edge case: routine id in URL but routine list still loading or routine deleted
+    if (routinesLoading && !selectedRoutine) {
+      return (
+        <View style={{ flex: 1, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={t.primary} />
+          <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: Space.sm }}>Loading routine…</Text>
+        </View>
+      );
+    }
+    if (!selectedRoutine) {
+      return (
+        <ScrollView
+          style={{ flex: 1, backgroundColor: t.bg }}
+          contentContainerStyle={{ padding: Space.lg, paddingTop: Space['4xl'], paddingBottom: 120 }}
+        >
+          <Card style={{ gap: Space.sm }}>
+            <Text style={{ color: t.text, fontSize: Size.lg, fontWeight: '800' }}>Routine not found</Text>
+            <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
+              This routine may have been deleted. Go back to your routine list.
+            </Text>
+            <Button title="Back to routines" onPress={handleClearSelection} />
+          </Card>
+        </ScrollView>
+      );
+    }
+
+    return (
+      <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: Space.lg, paddingTop: Space['4xl'], paddingBottom: 120 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm, marginBottom: Space.sm }}>
+          <Pressable
+            onPress={handleClearSelection}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: t.surface2,
+            }}
+          >
+            <Text style={{ color: t.text, fontSize: Size.lg }}>‹</Text>
+          </Pressable>
+          <Text
+            style={{
+              color: t.textSecondary,
+              fontSize: Size.xs,
+              letterSpacing: 1.5,
+              textTransform: 'uppercase',
+              fontWeight: '700',
+            }}
+          >
+            Routine
+          </Text>
+        </View>
+        <Text style={{ color: t.text, fontSize: Size['3xl'], fontWeight: '800', letterSpacing: -0.5 }}>
+          {routineDisplayName}
         </Text>
         <Text style={{ color: t.textSecondary, fontSize: Size.md, lineHeight: 22, marginTop: Space.sm, marginBottom: Space.lg }}>
           {routineGoal}
@@ -452,6 +672,9 @@ export default function WorkoutScreen() {
     );
   }
 
+  // =====================================================================
+  // Render: Active workout in progress (unchanged from previous version)
+  // =====================================================================
   return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
       {/* Header */}

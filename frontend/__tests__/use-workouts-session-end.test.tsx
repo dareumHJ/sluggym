@@ -113,7 +113,7 @@ describe('useWorkouts session end flow', () => {
 
     expect(workoutEnd.update).toHaveBeenCalledWith({ ended_at: endedAt });
     expect(workoutEnd.eq).toHaveBeenCalledWith('id', 'workout-1');
-    expect(workoutEnd.select).toHaveBeenCalledWith('id, user_id, name, target_muscle, started_at, ended_at, created_at');
+    expect(workoutEnd.select).toHaveBeenCalledWith('id, user_id, name, target_muscle, routine_id, started_at, ended_at, created_at');
     expect(updatedWorkout).toMatchObject({ id: 'workout-1', ended_at: endedAt, duration_min: 30 });
 
     // Equipment count release is handled by the database trigger on workout_exercises.ended_at.
