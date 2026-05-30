@@ -102,7 +102,7 @@ describe('useEquipment realtime subscription', () => {
     const { result } = renderHook(() => useEquipment());
 
     await waitFor(() => expect(result.current.equipment[0]?.quantity).toBe(2));
-    expect(channelMock).toHaveBeenCalledWith('gym-equipment-ui-refresh');
+    expect(channelMock.mock.calls[0][0]).toMatch(/^gym-equipment-ui-refresh-/);
     expect(realtimeHandler).toBeDefined();
 
     act(() => {
@@ -112,6 +112,28 @@ describe('useEquipment realtime subscription', () => {
     await waitFor(() => expect(result.current.equipment[0]?.quantity).toBe(1));
     expect(fromMock).toHaveBeenCalledTimes(2);
     expect(result.current.error).toBeNull();
+  });
+
+  it('uses a distinct realtime channel topic for each hook instance', async () => {
+    fetchQueue = [
+      { data: [benchRow(2)], error: null },
+      { data: [benchRow(3)], error: null },
+    ];
+
+    const first = renderHook(() => useEquipment());
+    const second = renderHook(() => useEquipment());
+
+    await waitFor(() => expect(first.result.current.loading).toBe(false));
+    await waitFor(() => expect(second.result.current.loading).toBe(false));
+
+    const topics = channelMock.mock.calls.map(([topic]) => topic);
+    expect(topics).toHaveLength(2);
+    expect(new Set(topics).size).toBe(2);
+    expect(topics[0]).toMatch(/^gym-equipment-ui-refresh-/);
+    expect(topics[1]).toMatch(/^gym-equipment-ui-refresh-/);
+
+    first.unmount();
+    second.unmount();
   });
 
   it('preserves stale data and reports an error when subscription recovery refresh fails', async () => {

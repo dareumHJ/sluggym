@@ -11,6 +11,8 @@ export type WeeklyCongestionCell = {
 
 const DEFAULT_DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DEFAULT_HOUR_ORDER = ['6a', '9a', '12p', '3p', '6p', '9p'];
+const DAY_LABEL_WIDTH = 32;
+const CELL_HEIGHT = 24;
 
 function clamp(value: number) {
   return Math.max(0, Math.min(100, value));
@@ -66,46 +68,51 @@ export function WeeklyCongestionHeatmap({
           </View>
         ) : null}
 
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
-          <View style={{ gap: 10, paddingBottom: 2 }}>
-            {days.map((day) => (
-              <Text key={day} style={{ color: t.textSecondary, fontSize: Size.sm, fontWeight: '700', minWidth: 28 }}>
-                {day}
+        <View style={{ gap: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2 }}>
+            <View style={{ width: DAY_LABEL_WIDTH }} />
+            {hours.map((hour) => (
+              <Text
+                key={hour}
+                style={{ color: t.textSecondary, flex: 1, fontSize: Size.xs, fontWeight: '700', textAlign: 'center' }}
+              >
+                {hour}
               </Text>
             ))}
           </View>
-          <View style={{ flex: 1, gap: 8 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2 }}>
-              {hours.map((hour) => (
-                <Text key={hour} style={{ color: t.textSecondary, fontSize: Size.xs, fontWeight: '700' }}>
-                  {hour}
-                </Text>
-              ))}
+          {days.map((day) => (
+            <View key={day} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text
+                style={{
+                  color: t.textSecondary,
+                  fontSize: Size.sm,
+                  fontWeight: '700',
+                  height: CELL_HEIGHT,
+                  lineHeight: CELL_HEIGHT,
+                  width: DAY_LABEL_WIDTH,
+                }}
+              >
+                {day}
+              </Text>
+              {hours.map((hour) => {
+                const cell = data.find((entry) => entry.day === day && entry.hourLabel === hour) ?? null;
+                const intensity = cell?.intensity ?? null;
+                return (
+                  <View
+                    key={`${day}-${hour}`}
+                    style={{
+                      flex: 1,
+                      height: CELL_HEIGHT,
+                      borderRadius: Radius.sm,
+                      backgroundColor: cellColor(intensity, t.primary),
+                      borderWidth: 1,
+                      borderColor: intensity === null ? t.border : withAlpha(t.primary, 0.28),
+                    }}
+                  />
+                );
+              })}
             </View>
-            <View style={{ gap: 8 }}>
-              {days.map((day) => (
-                <View key={day} style={{ flexDirection: 'row', gap: 8 }}>
-                  {hours.map((hour) => {
-                    const cell = data.find((entry) => entry.day === day && entry.hourLabel === hour) ?? null;
-                    const intensity = cell?.intensity ?? null;
-                    return (
-                      <View
-                        key={`${day}-${hour}`}
-                        style={{
-                          flex: 1,
-                          height: 24,
-                          borderRadius: Radius.sm,
-                          backgroundColor: cellColor(intensity, t.primary),
-                          borderWidth: 1,
-                          borderColor: intensity === null ? t.border : withAlpha(t.primary, 0.28),
-                        }}
-                      />
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
-          </View>
+          ))}
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.md }}>
@@ -129,7 +136,7 @@ export function WeeklyCongestionHeatmap({
             <Text style={{ color: t.text, fontSize: Size.sm, fontWeight: '800' }}>Best bets for a quieter session</Text>
             {quietest.map((cell) => (
               <Text key={`${cell.day}-${cell.hourLabel}`} style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
-                • {cell.day} at {cell.hourLabel}
+                - {cell.day} at {cell.hourLabel}
               </Text>
             ))}
           </View>
