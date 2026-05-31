@@ -17,6 +17,8 @@ import { useLiveOccupancy } from '../../src/hooks/useLiveOccupancy';
 import { useWorkouts } from '../../src/hooks/useWorkouts';
 import { HOURLY, WEEKLY_CONGESTION } from '../../src/data/mock';
 import { buildWorkoutRecommendation } from '../../src/lib/recommendations';
+import { useRoutineRecommendations } from '../../src/hooks/useRoutineRecommendations';
+
 
 function formatTimestamp(timestamp?: string | null) {
   if (!timestamp) return 'Waiting for a live update';
@@ -35,6 +37,7 @@ export default function HomeScreen() {
   const { workouts, activeWorkout, loading: workoutsLoading, error: workoutsError } = useWorkouts();
   const { getExercisesForWorkout } = useExercises();
   const headcountHistory = useHeadcountHistory();
+  const {uiRecommendations, loading: recsLoading, error: recsError, empty: recsEmpty, refresh: refreshRecommendations,} = useRoutineRecommendations();
   const [historyExercises, setHistoryExercises] = useState<WorkoutExerciseWithSets[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -238,7 +241,17 @@ export default function HomeScreen() {
       </AnimatedSection>
 
       <AnimatedSection delay={180} style={{ paddingHorizontal: Space.lg, marginBottom: Space.lg }}>
-        <OptimalTimeRecommendation />
+        <OptimalTimeRecommendation
+          recommendations={uiRecommendations}
+          loading={recsLoading}
+          error={recsError}
+          emptyHint={
+            recsEmpty
+              ? 'Create a routine and log at least one workout to unlock smart time recommendations.'
+              : null
+          }
+          onRefresh={() => void refreshRecommendations()}
+        />
       </AnimatedSection>
 
       <AnimatedSection delay={240} style={{ paddingHorizontal: Space.lg, marginBottom: Space.lg }}>

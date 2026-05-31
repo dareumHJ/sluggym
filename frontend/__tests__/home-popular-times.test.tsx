@@ -35,6 +35,17 @@ jest.mock('../src/hooks/useWorkouts', () => ({
   useWorkouts: jest.fn(),
 }));
 
+jest.mock('../src/hooks/useRoutineRecommendations', () => ({
+  useRoutineRecommendations: () => ({
+    recommendations: [],
+    uiRecommendations: [],
+    loading: false,
+    error: null,
+    empty: true,
+    refresh: jest.fn(async () => undefined),
+  }),
+}));
+
 jest.mock('../src/components/Occupancy', () => {
   const React = require('react');
   const { Text } = require('react-native');

@@ -36,6 +36,17 @@ jest.mock('../src/hooks/useWorkouts', () => ({
   useWorkouts: jest.fn(),
 }));
 
+jest.mock('../src/hooks/useRoutineRecommendations', () => ({
+  useRoutineRecommendations: () => ({
+    recommendations: [],
+    uiRecommendations: [],
+    loading: false,
+    error: null,
+    empty: true,
+    refresh: jest.fn(async () => undefined),
+  }),
+}));
+
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
 const mockUseEquipment = useEquipment as jest.MockedFunction<typeof useEquipment>;
 const mockUseExercises = useExercises as jest.MockedFunction<typeof useExercises>;
