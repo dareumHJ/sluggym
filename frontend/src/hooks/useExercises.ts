@@ -584,7 +584,7 @@ export function useExercises(): UseExercisesReturn {
       }
 
       const exercises = (data ?? []).map((row) =>
-        normalizeWorkoutExerciseWithSets(row as WorkoutExerciseWithSetsRow),
+        normalizeWorkoutExerciseWithSets(row as unknown as WorkoutExerciseWithSetsRow),
       );
 
       setLoading(false);
@@ -633,7 +633,7 @@ export function useExercises(): UseExercisesReturn {
 
       setLoading(false);
       if (!data) return null;
-      return normalizeWorkoutExerciseWithSets(data as WorkoutExerciseWithSetsRow);
+      return normalizeWorkoutExerciseWithSets(data as unknown as WorkoutExerciseWithSetsRow);
     },
     [],
   );

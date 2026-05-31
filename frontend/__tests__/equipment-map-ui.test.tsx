@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { EquipmentAvailabilityMap } from '../src/components/EquipmentAvailabilityMap';
 import { useEquipmentMap } from '../src/hooks/useEquipmentMap';
 
@@ -43,7 +43,7 @@ describe('EquipmentAvailabilityMap', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('renders map zones and opens zone equipment in a popup', () => {
+  it('renders map zones and opens zone equipment in a popup', async () => {
     mockHook();
     render(<EquipmentAvailabilityMap />);
 
@@ -60,24 +60,27 @@ describe('EquipmentAvailabilityMap', () => {
     fireEvent.press(screen.getAllByLabelText('Open Power Rack Zone equipment popup')[0]);
     expect(screen.getByText('Squat Rack')).toBeTruthy();
     expect(screen.getByText('Heavy compound station')).toBeTruthy();
-    expect(screen.getByText('Available now')).toBeTruthy();
+    expect(screen.getByText('Available')).toBeTruthy();
 
     fireEvent.press(screen.getByLabelText('Close equipment zone popup'));
-    expect(screen.queryByText('Squat Rack')).toBeNull();
+    await waitFor(() => expect(screen.queryByText('Squat Rack')).toBeNull());
 
     fireEvent.press(screen.getAllByLabelText('Open Bench Zone equipment popup')[0]);
     expect(screen.getByText('Bench Press')).toBeTruthy();
-    expect(screen.getByText('Currently occupied')).toBeTruthy();
+    expect(screen.getByText('Occupied')).toBeTruthy();
 
     fireEvent.press(screen.getByLabelText('Close equipment zone popup'));
+    await waitFor(() => expect(screen.queryByText('Bench Press')).toBeNull());
 
     fireEvent.press(screen.getAllByLabelText('Open Plate-loaded Zone equipment popup')[0]);
     expect(screen.getByText('Leg Press')).toBeTruthy();
-    expect(screen.getByText('Status unavailable')).toBeTruthy();
+    expect(screen.getByText('Unknown')).toBeTruthy();
 
     fireEvent.press(screen.getByLabelText('Close equipment zone popup'));
+    await waitFor(() => expect(screen.queryByText('Leg Press')).toBeNull());
 
     fireEvent.press(screen.getByText('2nd floor'));
     expect(screen.getByText('Cardio Zone')).toBeTruthy();
+    expect(screen.queryByText('Functional Area')).toBeNull();
   });
 });

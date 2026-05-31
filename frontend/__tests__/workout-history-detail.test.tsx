@@ -66,6 +66,8 @@ describe('WorkoutHistoryDetailScreen', () => {
           started_at: '2026-05-10T01:05:00.000Z',
           ended_at: '2026-05-10T01:25:00.000Z',
           created_at: '2026-05-10T01:05:00.000Z',
+          exercise: null,
+          equipment: null,
           sets: [
             {
               id: 'set-1',
@@ -111,7 +113,7 @@ describe('WorkoutHistoryDetailScreen', () => {
           started_at: '2026-05-10T01:05:00.000Z',
           ended_at: '2026-05-10T01:25:00.000Z',
           created_at: '2026-05-10T01:05:00.000Z',
-          exercise: { id: '12', name: 'Barbell Bench Press' },
+          exercise: { id: '12', name: 'Barbell Bench Press', target_muscle: 'Chest', exercise_type: 'Strength' },
           equipment: { id: '88', name: 'Flat Bench', category: 'Free Weights' },
           sets: [],
         },

@@ -16,6 +16,10 @@ jest.mock('../src/hooks/useWorkouts', () => ({
   useWorkouts: jest.fn(),
 }));
 
+jest.mock('../src/components/EquipmentAvailabilityMap', () => ({
+  EquipmentAvailabilityMap: () => null,
+}));
+
 const mockUseWorkouts = useWorkouts as jest.MockedFunction<typeof useWorkouts>;
 const mockPush = router.push as jest.Mock;
 

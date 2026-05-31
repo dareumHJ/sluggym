@@ -24,6 +24,7 @@ interface UseEquipmentReturn {
 
 const REALTIME_RECONNECT_BASE_MS = 1_000;
 const REALTIME_RECONNECT_MAX_MS = 30_000;
+let equipmentChannelCounter = 0;
 
 interface EquipmentRow {
   id: number | string;
@@ -55,6 +56,7 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
   const isMountedRef = useRef(true);
   const connectionStateRef = useRef<'live' | 'reconnecting' | 'offline'>('reconnecting');
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const channelNameRef = useRef(`gym-equipment-ui-refresh-${++equipmentChannelCounter}`);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
 
@@ -112,7 +114,7 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
       removeCurrentChannel();
 
       const channel = supabase
-        .channel('gym-equipment-ui-refresh')
+        .channel(channelNameRef.current)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'gym_equipment' },

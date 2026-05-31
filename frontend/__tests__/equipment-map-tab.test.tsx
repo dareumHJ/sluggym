@@ -83,8 +83,8 @@ describe('Equipment map tab', () => {
     expect(screen.getAllByText('Cable Zone').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cardio Zone').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Machine Zone').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Functional Area').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('4').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Functional Area')).toBeNull();
+    expect(screen.queryByText('4')).toBeNull();
   });
 
   it('keeps the loading state available in the dedicated tab', () => {

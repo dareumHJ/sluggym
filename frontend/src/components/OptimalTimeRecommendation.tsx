@@ -16,27 +16,10 @@ type OptimalTimeRecommendationProps = {
   recommendations?: TimeRecommendation[];
   loading?: boolean;
   error?: string | null;
+  /** Shown when there's no error but the algorithm could not produce a recommendation. */
+  emptyHint?: string | null;
   onRefresh?: () => void;
 };
-
-export const MOCK_TIME_RECOMMENDATIONS: TimeRecommendation[] = [
-  {
-    id: 'morning-quiet',
-    label: 'Best overall',
-    timeRange: '9:00–10:30 AM',
-    congestion: 'low',
-    confidence: 82,
-    reason: 'Usually quieter than the afternoon rush and good for full-body routines.',
-  },
-  {
-    id: 'early-afternoon',
-    label: 'Good backup',
-    timeRange: '1:00–2:30 PM',
-    congestion: 'moderate',
-    confidence: 68,
-    reason: 'Likely workable if morning is not possible; expect some equipment sharing.',
-  },
-];
 
 function congestionCopy(congestion: TimeRecommendation['congestion']) {
   if (congestion === 'low') return { label: 'Low crowd', tone: 'success' as const };
@@ -44,7 +27,13 @@ function congestionCopy(congestion: TimeRecommendation['congestion']) {
   return { label: 'Busy', tone: 'error' as const };
 }
 
-export function OptimalTimeRecommendation({ recommendations = MOCK_TIME_RECOMMENDATIONS, loading = false, error = null, onRefresh }: OptimalTimeRecommendationProps) {
+export function OptimalTimeRecommendation({
+  recommendations = [],
+  loading = false,
+  error = null,
+  emptyHint = null,
+  onRefresh,
+}: OptimalTimeRecommendationProps) {
   const t = useTheme();
   const best = recommendations[0] ?? null;
 
@@ -73,19 +62,45 @@ export function OptimalTimeRecommendation({ recommendations = MOCK_TIME_RECOMMEN
             <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '900' }}>Recommendation unavailable</Text>
             <Text style={{ color: t.warning, fontSize: Size.sm, lineHeight: 20 }}>{error}</Text>
             {onRefresh ? (
-              <Pressable onPress={onRefresh} style={{ alignSelf: 'flex-start', paddingHorizontal: Space.md, paddingVertical: Space.sm, borderRadius: Radius.full, backgroundColor: withAlpha(t.primary, 0.12) }}>
+              <Pressable
+                onPress={onRefresh}
+                style={{
+                  alignSelf: 'flex-start',
+                  paddingHorizontal: Space.md,
+                  paddingVertical: Space.sm,
+                  borderRadius: Radius.full,
+                  backgroundColor: withAlpha(t.primary, 0.12),
+                }}
+              >
                 <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '900' }}>Try again</Text>
               </Pressable>
             ) : null}
           </View>
         ) : best ? (
           <View style={{ gap: Space.md }}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                gap: Space.md,
+              }}
+            >
               <View style={{ flex: 1 }}>
-                <Text style={{ color: t.textSecondary, fontSize: Size.xs, letterSpacing: 1.3, textTransform: 'uppercase', fontWeight: '800' }}>
+                <Text
+                  style={{
+                    color: t.textSecondary,
+                    fontSize: Size.xs,
+                    letterSpacing: 1.3,
+                    textTransform: 'uppercase',
+                    fontWeight: '800',
+                  }}
+                >
                   {best.label}
                 </Text>
-                <Text style={{ color: t.text, fontSize: Size['2xl'], fontWeight: '900', marginTop: 4 }}>{best.timeRange}</Text>
+                <Text style={{ color: t.text, fontSize: Size['2xl'], fontWeight: '900', marginTop: 4 }}>
+                  {best.timeRange}
+                </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={{ color: t.primary, fontSize: Size.xl, fontWeight: '900' }}>{best.confidence}%</Text>
@@ -98,7 +113,8 @@ export function OptimalTimeRecommendation({ recommendations = MOCK_TIME_RECOMMEN
             <View style={{ flexDirection: 'row', gap: Space.sm }}>
               {recommendations.map((item) => {
                 const copy = congestionCopy(item.congestion);
-                const toneColor = copy.tone === 'success' ? t.success : copy.tone === 'warning' ? t.warning : t.error;
+                const toneColor =
+                  copy.tone === 'success' ? t.success : copy.tone === 'warning' ? t.warning : t.error;
                 const active = item.id === best.id;
 
                 return (
@@ -114,8 +130,24 @@ export function OptimalTimeRecommendation({ recommendations = MOCK_TIME_RECOMMEN
                       gap: Space.xs,
                     }}
                   >
-                    <Text style={{ color: active ? t.primary : t.text, fontSize: Size.sm, fontWeight: '900' }}>{item.timeRange}</Text>
-                    <View style={{ alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.full, backgroundColor: withAlpha(toneColor, 0.14) }}>
+                    <Text
+                      style={{
+                        color: active ? t.primary : t.text,
+                        fontSize: Size.sm,
+                        fontWeight: '900',
+                      }}
+                    >
+                      {item.timeRange}
+                    </Text>
+                    <View
+                      style={{
+                        alignSelf: 'flex-start',
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: Radius.full,
+                        backgroundColor: withAlpha(toneColor, 0.14),
+                      }}
+                    >
                       <Text style={{ color: toneColor, fontSize: Size.xs, fontWeight: '900' }}>{copy.label}</Text>
                     </View>
                   </View>
@@ -127,7 +159,7 @@ export function OptimalTimeRecommendation({ recommendations = MOCK_TIME_RECOMMEN
           <View style={{ gap: Space.sm }}>
             <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '900' }}>No recommendation available yet</Text>
             <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
-              Once scoring data is connected, this card will show the best time to visit.
+              {emptyHint ?? 'Log your first session to receive smart time recommendations.'}
             </Text>
           </View>
         )}
