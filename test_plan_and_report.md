@@ -109,10 +109,10 @@ This document outlines the system-level test scenarios designed to verify that a
    * **Expected Output**: The card now displays a suggestion: `Best for Chest Day` followed by a day and time (e.g., `Wed 9:00 AM–12:00 PM`) and a confidence percentage (e.g. `72% confidence`). The card lists the reason: *"Based on your equipment availability history"* (or headcount/baseline fallbacks if data is sparse).
 3. **Action**: Go to the **Workout** tab, select `Chest Day`, and review the routine preview screen.
    * **Expected Output**: Instead of the empty banner, the routine preview now displays the bootstrapped exercises and sets from the last completed session (`Barbell Bench Press - 2 sets`).
-4. **Action**: Opt in for alerts: Navigate to the **Map** tab, tap **Free Weights**, select **Power Rack** (currently busy, 0 available), and tap **Notify Me When Free**.
-   * **Expected Output**: The app registers the alert callback.
+4. **Action**: Opt in for alerts: Navigate to the **Search** tab. Select **Equipment** mode and search for `Power Rack` (currently busy, 0 available). Tap **Notify when free**.
+   * **Expected Output**: The button changes to `✓ Notifying when free` and the app registers the alert callback.
 5. **Action**: Simulate/Trigger availability update: Another user logs out or releases the `Power Rack` (setting available count > 0).
-   * **Expected Output**: An in-app banner or toast alert is triggered immediately: *"Power Rack is now free! Head over to the Free Weights zone."*
+   * **Expected Output**: An in-app toast notification is displayed at the top showing `NOW AVAILABLE` and the equipment name `Power Rack`. Tapping the toast dismisses it and removes `Power Rack` from the watchlist.
 
 ---
 
@@ -123,8 +123,8 @@ An automated test suite exists in `frontend/__tests__` and has been run successf
 ### Automated Test Execution
 * **Command**: `cd frontend && npm test -- --runInBand --timeout=15000`
 * **Result**: **PASS** (100%)
-* **Suites**: 25 passed, 25 total
-* **Tests**: 129 passed, 129 total
+* **Suites**: 27 passed, 27 total
+* **Tests**: 149 passed, 149 total
 
 ### Typechecking & Linting
 * **Typecheck Command**: `npx tsc --noEmit` (Successfully verified code types)
