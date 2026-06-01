@@ -33,7 +33,8 @@ export interface WorkoutExercise {
   id: string;
   workout_id: string;
   exercise_id: string;
-  equipment_id: string;
+  /** Equipment used. May be null for exercises with no equipment mapping (e.g., bodyweight). */
+  equipment_id: string | null;
   order_index: number;
   /** ISO timestamp when the user started using this equipment. */
   started_at: string;
@@ -89,7 +90,8 @@ export interface WorkoutExerciseWithSets extends WorkoutExercise {
 interface AddExerciseInput {
   workoutId: string;
   exerciseId: string;
-  equipmentId: string;
+  /** Equipment to associate. Null for bodyweight or unmapped exercises. */
+  equipmentId: string | null;
   orderIndex: number;
 }
 
@@ -119,8 +121,8 @@ interface UseExercisesReturn {
   error: string | null;
   /** Start a new exercise; decrements equipment count. */
   addExercise: (input: AddExerciseInput) => Promise<WorkoutExercise>;
-  /** End an active exercise; increments equipment count. */
-  endExercise: (workoutExerciseId: string, equipmentId: string) => Promise<WorkoutExercise>;
+  /** End an active exercise; increments equipment count (no-op if equipmentId is null). */
+  endExercise: (workoutExerciseId: string, equipmentId: string | null) => Promise<WorkoutExercise>;
   /** Add a set to an exercise. */
   addSet: (input: AddSetInput) => Promise<ExerciseSet>;
   /** Update fields on an existing set. */
@@ -150,7 +152,7 @@ interface WorkoutExerciseRow {
   id: string | number;
   workout_id: string;
   exercise_id: string | number;
-  equipment_id: string | number;
+  equipment_id: string | number | null;
   order_index: number;
   started_at: string;
   ended_at: string | null;
@@ -195,7 +197,7 @@ function normalizeWorkoutExerciseRow(row: WorkoutExerciseRow): WorkoutExercise {
     id: String(row.id),
     workout_id: row.workout_id,
     exercise_id: String(row.exercise_id),
-    equipment_id: String(row.equipment_id),
+    equipment_id: row.equipment_id == null ? null : String(row.equipment_id),
     order_index: row.order_index,
     started_at: row.started_at,
     ended_at: row.ended_at,
@@ -322,7 +324,7 @@ export function useExercises(): UseExercisesReturn {
         .insert({
           workout_id: workoutId,
           exercise_id: Number(exerciseId),
-          equipment_id: Number(equipmentId),
+          equipment_id: equipmentId == null ? null : Number(equipmentId),
           order_index: orderIndex,
           started_at: new Date().toISOString(),
         })
@@ -355,7 +357,7 @@ export function useExercises(): UseExercisesReturn {
   );
 
   const endExercise = useCallback(
-    async (workoutExerciseId: string, equipmentId: string): Promise<WorkoutExercise> => {
+    async (workoutExerciseId: string, _equipmentId: string | null): Promise<WorkoutExercise> => {
       setLoading(true);
       setError(null);
 
