@@ -40,7 +40,7 @@ export function useHeadcountHistory(days = LOOKBACK_DAYS) {
     try {
       const { data, error } = await supabase
         .from('gym_headcount_history')
-        .select('count, capacity, sampled_at')
+        .select('count, sampled_at')
         .gte('sampled_at', lookbackStart(days))
         .order('sampled_at', { ascending: false })
         .limit(1000);
