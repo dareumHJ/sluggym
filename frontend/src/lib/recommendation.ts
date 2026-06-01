@@ -1,5 +1,3 @@
-import type { WeeklyCongestionCell } from '../components/WeeklyCongestionHeatmap';
-
 export type RoutineEquipmentNeed = {
   routineId: string;
   routineName: string;
@@ -170,7 +168,6 @@ export function getOptimalTimesForRoutine(
       const availabilities: number[] = [];
       let highConfidenceCount = 0;
       let mediumConfidenceCount = 0;
-      let lowConfidenceCount = 0;
 
       let minAvailVal = 1.0;
       let bottleneckName = 'None';
@@ -209,7 +206,6 @@ export function getOptimalTimesForRoutine(
             const baselineBusy = IHRSA_OCCUPANCY_BASELINE[hourLabel] ?? 0.50;
             const estimatedAvail = 1.0 - baselineBusy;
             availabilities.push(estimatedAvail);
-            lowConfidenceCount++;
 
             if (estimatedAvail < minAvailVal) {
               minAvailVal = estimatedAvail;
