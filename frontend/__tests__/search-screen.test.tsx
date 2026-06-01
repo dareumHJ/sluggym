@@ -10,6 +10,18 @@ jest.mock('../src/hooks/useEquipment', () => ({
 jest.mock('../src/hooks/useExerciseCatalog', () => ({
   useExerciseCatalog: jest.fn(),
 }));
+jest.mock('../src/contexts/NotificationContext', () => ({
+  useNotifications: () => ({
+    isInWatchlist: () => false,
+    addToWatchlist: jest.fn(),
+    removeFromWatchlist: jest.fn(),
+    watchlist: new Set(),
+    toasts: [],
+    dismissToast: jest.fn(),
+    onToastTap: jest.fn(),
+  }),
+  NotificationProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 const mockUseEquipment = useEquipment as jest.MockedFunction<typeof useEquipment>;
 const mockUseExerciseCatalog = useExerciseCatalog as jest.MockedFunction<typeof useExerciseCatalog>;

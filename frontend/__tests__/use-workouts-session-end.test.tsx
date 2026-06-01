@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { supabase } from '../src/lib/supabase';
 import { useWorkouts } from '../src/hooks/useWorkouts';
+import { useExercises } from '../src/hooks/useExercises';
 
 jest.mock('../src/lib/supabase', () => ({
   supabase: {
@@ -10,6 +11,21 @@ jest.mock('../src/lib/supabase', () => ({
     from: jest.fn(),
     rpc: jest.fn(),
   },
+}));
+
+// useExercises imports AuthContext, which uses expo-linking's makeRedirectUri
+// at module load time. expo-linking requires an expo-constants manifest that
+// isn't available in the jest environment. Mocking AuthContext sidesteps the
+// whole chain — the tests don't exercise auth behaviour, only the hook's
+// supabase interactions.
+jest.mock('../src/contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: { id: 'user-1' },
+    loading: false,
+    signIn: jest.fn(),
+    signOut: jest.fn(),
+  }),
+  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 const mockSupabase = supabase as jest.Mocked<typeof supabase>;
@@ -135,5 +151,74 @@ describe('useWorkouts session end flow', () => {
 
     expect(fromMock).toHaveBeenCalledTimes(3);
     expect(rpcMock).not.toHaveBeenCalled();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* useExercises.deleteExercise                                         */
+/* ------------------------------------------------------------------ */
+
+function queueExerciseDelete(error: { message: string } | null = null) {
+  const eq = jest.fn(async () => ({ error }));
+  const del: jest.Mock = jest.fn(() => ({ eq }));
+
+  fromMock.mockReturnValueOnce({ delete: del });
+  return { delete: del, eq };
+}
+
+describe('useExercises.deleteExercise', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    getUserMock.mockResolvedValue({
+      data: { user: { id: 'user-1' } },
+      error: null,
+    });
+  });
+
+  it('deletes the workout_exercises row by id', async () => {
+    const exerciseDelete = queueExerciseDelete();
+
+    const { result } = renderHook(() => useExercises());
+
+    await act(async () => {
+      await result.current.deleteExercise('42');
+    });
+
+    // .from('workout_exercises').delete().eq('id', Number('42'))
+    expect(fromMock).toHaveBeenCalledWith('workout_exercises');
+    expect(exerciseDelete.delete).toHaveBeenCalledTimes(1);
+    expect(exerciseDelete.eq).toHaveBeenCalledWith('id', 42);
+    // Equipment count release is handled by the DB trigger on DELETE.
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it('throws and exposes an error when the database delete fails', async () => {
+    queueExerciseDelete({ message: 'delete blocked by policy' });
+
+    const { result } = renderHook(() => useExercises());
+
+    await expect(result.current.deleteExercise('42')).rejects.toThrow(
+      'delete blocked by policy',
+    );
+
+    await waitFor(() => expect(result.current.error).toBe('delete blocked by policy'));
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('does not touch local state for non-active exercises', async () => {
+    queueExerciseDelete();
+
+    const { result } = renderHook(() => useExercises());
+
+    expect(result.current.activeExercise).toBeNull();
+    expect(result.current.setsForActiveExercise).toEqual([]);
+
+    await act(async () => {
+      await result.current.deleteExercise('42');
+    });
+
+    // No active exercise was hydrated, so deletion leaves local state alone.
+    expect(result.current.activeExercise).toBeNull();
+    expect(result.current.setsForActiveExercise).toEqual([]);
   });
 });

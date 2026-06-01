@@ -7,6 +7,7 @@ import { EquipmentIconLegend, EquipmentVisual } from '../../src/components/Equip
 import { ExerciseFilterPanel } from '../../src/components/ExerciseFilterPanel';
 import { useEquipment } from '../../src/hooks/useEquipment';
 import { useExerciseCatalog } from '../../src/hooks/useExerciseCatalog';
+import { useNotifications } from '../../src/contexts/NotificationContext';
 
 type SearchMode = 'equipment' | 'exercises';
 
@@ -49,6 +50,7 @@ export default function SearchScreen() {
     muscle: exerciseMuscle,
     level: exerciseLevel,
   });
+  const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useNotifications();
 
   const hasEquipmentFilters = q.trim() !== '' || category !== 'All';
 
@@ -193,27 +195,55 @@ export default function SearchScreen() {
         <EquipmentIconLegend theme={t} />
         {error ? renderWarningBanner(error, () => void refresh()) : null}
         {loading ? <Text style={{ color: t.textSecondary, fontSize: Size.sm, textAlign: 'center' }}>Refreshing live equipment…</Text> : null}
-        {filteredEquipment.map((item) => (
-          <Card key={item.id} style={{ gap: Space.xs }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.md }}>
-              <EquipmentVisual name={item.name} category={item.category} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{item.name}</Text>
-                <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 20 }}>
-                  Category: {item.category}
-                  {item.location ? ` · ${item.location}` : ''}
+        {filteredEquipment.map((item) => {
+          const watching = isInWatchlist(item.id);
+          const occupied = (item.quantity ?? 0) === 0;
+          return (
+            <Card key={item.id} style={{ gap: Space.xs }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.md }}>
+                <EquipmentVisual name={item.name} category={item.category} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{item.name}</Text>
+                  <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 20 }}>
+                    Category: {item.category}
+                    {item.location ? ` · ${item.location}` : ''}
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ color: t.primary, fontSize: Size.md, fontWeight: '800' }}>{item.quantity}</Text>
+                  <Text style={{ color: t.textSecondary, fontSize: Size.sm, fontWeight: '700' }}>available</Text>
+                </View>
+              </View>
+              {item.description ? (
+                <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>{item.description}</Text>
+              ) : null}
+              {/* Notify-when-free toggle. Only meaningful when the equipment is currently busy. */}
+              <Pressable
+                onPress={() => (watching ? removeFromWatchlist(item.id) : addToWatchlist(item.id))}
+                style={{
+                  alignSelf: 'flex-start',
+                  marginTop: Space.xs,
+                  paddingHorizontal: Space.md,
+                  paddingVertical: 6,
+                  borderRadius: Radius.full,
+                  backgroundColor: watching ? t.primary : t.surface2,
+                  borderWidth: 1,
+                  borderColor: watching ? t.primary : t.borderLight,
+                }}
+              >
+                <Text
+                  style={{
+                    color: watching ? t.onPrimary : t.text,
+                    fontSize: Size.xs,
+                    fontWeight: '800',
+                  }}
+                >
+                  {watching ? '✓ Notifying when free' : occupied ? '🔔 Notify when free' : '🔔 Notify if it becomes busy then free'}
                 </Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ color: t.primary, fontSize: Size.md, fontWeight: '800' }}>{item.quantity}</Text>
-                <Text style={{ color: t.textSecondary, fontSize: Size.sm, fontWeight: '700' }}>available</Text>
-              </View>
-            </View>
-            {item.description ? (
-              <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>{item.description}</Text>
-            ) : null}
-          </Card>
-        ))}
+              </Pressable>
+            </Card>
+          );
+        })}
       </>
     );
   };

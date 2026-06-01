@@ -102,12 +102,18 @@ function createRoutineWorkoutExercise(
     name: catalogExercise?.name ?? `Exercise #${savedExercise.exercise_id}`,
     equipmentName: matchedEquipment?.name ?? (savedExercise.equipment_id ? `Equipment #${savedExercise.equipment_id}` : 'No equipment needed'),
     notes: catalogExercise?.targetMuscle ? pretty(catalogExercise.targetMuscle) : undefined,
-    sets: savedSets.map((set) => ({
-      previous: set.weight > 0 && set.reps > 0 ? `${set.weight} kg × ${set.reps}` : '—',
-      kg: '',
-      reps: '',
-      completed: false,
-    })),
+    sets: savedSets.map((set) => {
+      const hasValid = set.weight > 0 && set.reps > 0;
+      return {
+        previous: hasValid ? `${set.weight} kg × ${set.reps}` : '—',
+        // Pre-fill kg/reps with the previous workout's values so the user can
+        // either confirm or tweak instead of typing from scratch. Empty when
+        // there's no valid previous value to copy.
+        kg: hasValid ? String(set.weight) : '',
+        reps: hasValid ? String(set.reps) : '',
+        completed: false,
+      };
+    }),
   };
 }
 
@@ -123,6 +129,7 @@ export default function WorkoutScreen() {
     addExercise: persistExercise,
     addSet: persistSet,
     endExercise: finishPersistedExercise,
+    deleteExercise: persistDeleteExercise,
     getExercisesForWorkout,
     loading: exerciseSaving,
     error: exerciseSaveError,
@@ -158,6 +165,10 @@ export default function WorkoutScreen() {
   const [endError, setEndError] = useState<string | null>(null);
   const [showEndModal, setShowEndModal] = useState(false);
   const [showExercisePicker, setShowExercisePicker] = useState(false);
+  /** Index of the exercise pending deletion confirmation. Null = no modal. */
+  const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
   const [lastRoutineExercises, setLastRoutineExercises] = useState<WorkoutExerciseWithSets[]>([]);
   const [routineLoading, setRoutineLoading] = useState(false);
@@ -308,6 +319,60 @@ export default function WorkoutScreen() {
     setPickerEquipment('All');
     setPickerMuscle('All');
     setPickerLevel('All');
+  };
+
+  /** Open the delete confirmation modal for the exercise at index. */
+  const requestRemoveExercise = (exIdx: number) => {
+    setDeleteError(null);
+    setPendingDeleteIdx(exIdx);
+  };
+
+  /**
+   * Confirm exercise removal. Removes from local state, and — if the active
+   * workout already has a persisted row for this exercise — deletes that row
+   * from the DB so the data doesn't outlive the user's intent.
+   *
+   * Persisted rows are identified by querying workout_exercises for the
+   * active workout and matching on exercise_id + equipment_id. This is
+   * tolerant of multiple instances of the same exercise within one workout
+   * (only the first match is deleted).
+   */
+  const confirmRemoveExercise = async () => {
+    if (pendingDeleteIdx === null) return;
+    const idx = pendingDeleteIdx;
+    const target = exercises[idx];
+    if (!target) {
+      setPendingDeleteIdx(null);
+      return;
+    }
+
+    setDeleting(true);
+    setDeleteError(null);
+
+    try {
+      // If there's an active workout, find and delete any persisted rows for
+      // this exercise+equipment combo. The trigger releases the equipment.
+      if (activeWorkout) {
+        const persistedExercises = await getExercisesForWorkout(activeWorkout.id);
+        const matches = persistedExercises.filter(
+          (row) =>
+            row.exercise_id === target.exerciseId &&
+            row.equipment_id === target.equipmentId,
+        );
+        for (const row of matches) {
+          await persistDeleteExercise(row.id);
+        }
+      }
+
+      setExercises((prev) => prev.filter((_, i) => i !== idx));
+      setTouchedFields({});
+      setFormMessage(null);
+      setPendingDeleteIdx(null);
+    } catch (error) {
+      setDeleteError(getErrorMessage(error));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const updateSet = (exIdx: number, sIdx: number, patch: Partial<WorkoutSet>) => {
@@ -728,15 +793,36 @@ export default function WorkoutScreen() {
 
         {exercises.map((ex, exIdx) => (
           <Card key={ex.id} style={{ marginBottom: Space.md }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Space.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: Space.sm, gap: Space.sm }}>
               <Pressable
+                style={{ flex: 1 }}
                 onPress={() => ex.equipmentId && router.push(`/equipment/${ex.equipmentId}`)}
                 disabled={ex.equipmentId === null}
               >
                 <Text style={{ color: t.primary, fontSize: Size.md, fontWeight: '800' }}>{ex.name}</Text>
                 <Text style={{ color: t.textMuted, fontSize: 10, marginTop: 2 }}>{ex.equipmentName}</Text>
               </Pressable>
-              <Text style={{ color: t.textMuted, fontSize: Size.xs }}>{ex.notes ?? ''}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}>
+                {ex.notes ? (
+                  <Text style={{ color: t.textMuted, fontSize: Size.xs }}>{ex.notes}</Text>
+                ) : null}
+                <Pressable
+                  onPress={() => requestRemoveExercise(exIdx)}
+                  hitSlop={8}
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: t.surface2,
+                    borderWidth: 1,
+                    borderColor: t.borderLight,
+                  }}
+                >
+                  <Text style={{ color: t.textMuted, fontSize: Size.md, fontWeight: '700', lineHeight: Size.md + 2 }}>×</Text>
+                </Pressable>
+              </View>
             </View>
             {/* Column headers */}
             <View style={{ flexDirection: 'row', paddingVertical: 4 }}>
@@ -864,6 +950,47 @@ export default function WorkoutScreen() {
                   onPress={confirmEndSession}
                 />
                 <Button title="Keep going" variant="secondary" size="lg" disabled={endingInFlight} onPress={() => setShowEndModal(false)} />
+              </View>
+            </Card>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Delete exercise confirmation */}
+      <Modal
+        transparent
+        visible={pendingDeleteIdx !== null}
+        animationType="fade"
+        onRequestClose={() => !deleting && setPendingDeleteIdx(null)}
+      >
+        <Pressable
+          onPress={() => !deleting && setPendingDeleteIdx(null)}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', alignItems: 'center', justifyContent: 'center', padding: Space.lg }}
+        >
+          <Pressable onPress={(event) => event.stopPropagation()} style={{ width: '100%', maxWidth: 420 }}>
+            <Card style={{ gap: Space.md }}>
+              <Text style={{ color: t.text, fontSize: Size.xl, fontWeight: '800' }}>Remove exercise?</Text>
+              <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
+                {pendingDeleteIdx !== null && exercises[pendingDeleteIdx]
+                  ? `"${exercises[pendingDeleteIdx].name}" and all of its sets will be removed from this workout.`
+                  : 'This exercise will be removed.'}
+              </Text>
+              {deleteError ? (
+                <Text style={{ color: t.error, fontSize: Size.sm, fontWeight: '700' }}>{deleteError}</Text>
+              ) : null}
+              <View style={{ gap: Space.sm, marginTop: Space.sm }}>
+                <Button
+                  title={deleting ? 'Removing…' : 'Remove'}
+                  onPress={() => void confirmRemoveExercise()}
+                  disabled={deleting}
+                  variant="danger"
+                />
+                <Button
+                  title="Cancel"
+                  onPress={() => setPendingDeleteIdx(null)}
+                  disabled={deleting}
+                  variant="secondary"
+                />
               </View>
             </Card>
           </Pressable>
