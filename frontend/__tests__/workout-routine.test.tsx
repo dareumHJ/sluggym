@@ -142,7 +142,7 @@ function setupMocks({
         name: 'Barbell Bench Press',
         category: 'strength',
         level: 'beginner',
-        equipmentRequired: 'Bench Press',
+        equipmentOptions: [],
         exerciseType: 'Barbell',
         targetMuscle: 'Chest',
         primaryMuscles: ['Chest'],

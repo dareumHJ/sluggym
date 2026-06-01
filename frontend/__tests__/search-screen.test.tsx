@@ -54,7 +54,7 @@ function setupMocks(overrides: { equipment?: Partial<EquipmentHookReturn>; exerc
         name: 'Barbell Squat',
         category: 'strength',
         level: 'beginner',
-        equipmentRequired: 'barbell',
+        equipmentOptions: [],
         exerciseType: 'Barbell',
         targetMuscle: 'Quads',
         primaryMuscles: ['quadriceps'],
@@ -67,7 +67,7 @@ function setupMocks(overrides: { equipment?: Partial<EquipmentHookReturn>; exerc
         name: 'Barbell Squat',
         category: 'strength',
         level: 'beginner',
-        equipmentRequired: 'barbell',
+        equipmentOptions: [],
         exerciseType: 'Barbell',
         targetMuscle: 'Quads',
         primaryMuscles: ['quadriceps'],
@@ -106,11 +106,11 @@ describe('SearchScreen', () => {
     fireEvent.press(screen.getByText('Exercises'));
 
     expect(screen.getByText('Find Exercises')).toBeTruthy();
-    expect(screen.getByText('All equipment')).toBeTruthy();
-    expect(screen.getByText('All muscles')).toBeTruthy();
-    expect(screen.getByText('All levels')).toBeTruthy();
+    expect(screen.getAllByText('Equipment').length).toBeGreaterThan(0);
+    expect(screen.getByText('Muscle')).toBeTruthy();
+    expect(screen.getByText('Level')).toBeTruthy();
     expect(screen.getByText('Barbell Squat')).toBeTruthy();
-    expect(screen.getByText('1 visible · 1 exercises')).toBeTruthy();
+    expect(screen.getByText('1 of 1 exercises')).toBeTruthy();
   });
 
   it('instantly updates UI when hook state changes due to realtime event', () => {

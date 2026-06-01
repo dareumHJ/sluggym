@@ -4,8 +4,13 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View 
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme, Space, Radius, Size, withAlpha } from '../../src/constants/theme';
 import { Card, Button, StatTile } from '../../src/components/primitives';
+import { ExerciseFilterPanel } from '../../src/components/ExerciseFilterPanel';
 import { useEquipment, type EquipmentListItem } from '../../src/hooks/useEquipment';
-import { useExerciseCatalog, type ExerciseCatalogItem } from '../../src/hooks/useExerciseCatalog';
+import {
+  useExerciseCatalog,
+  type ExerciseCatalogItem,
+  type ExerciseEquipmentOption,
+} from '../../src/hooks/useExerciseCatalog';
 import { useExercises, type WorkoutExerciseWithSets } from '../../src/hooks/useExercises';
 import { useWorkouts } from '../../src/hooks/useWorkouts';
 import { useRoutines, type Routine } from '../../src/hooks/useRoutines';
@@ -17,7 +22,8 @@ type WorkoutSet = { previous: string; kg: string; reps: string; completed: boole
 type WorkoutExercise = {
   id: string;
   exerciseId: string;
-  equipmentId: string;
+  /** Null for exercises with no equipment mapping (e.g., bodyweight). */
+  equipmentId: string | null;
   name: string;
   equipmentName: string;
   notes?: string;
@@ -28,8 +34,6 @@ type FieldName = 'kg' | 'reps';
 const DEFAULT_WORKOUT_NAME = 'Workout Session';
 const DEFAULT_ROUTINE_GOAL = 'Build consistency with a repeatable strength session.';
 const EMPTY_SET: WorkoutSet = { previous: '—', kg: '', reps: '', completed: false };
-const normalize = (value: string | null | undefined) => (value ?? '').trim().toLowerCase();
-
 const fieldKey = (exerciseId: string, setIndex: number, field: FieldName) => `${exerciseId}:${setIndex}:${field}`;
 
 const parseNumber = (value: string) => {
@@ -65,46 +69,38 @@ function formatLastUsed(lastUsedAt: string | null): string {
   return date.toLocaleDateString();
 }
 
-function matchEquipmentForExercise(exercise: ExerciseCatalogItem, equipment: EquipmentListItem[]) {
-  const required = normalize(exercise.equipmentRequired);
-  if (!required) return null;
-
-  return (
-    equipment.find((item) => normalize(item.name) === required) ??
-    equipment.find((item) => normalize(item.name).includes(required) || required.includes(normalize(item.name))) ??
-    equipment.find((item) => normalize(item.category) === required) ??
-    equipment.find((item) => normalize(item.category).includes(required) || required.includes(normalize(item.category))) ??
-    null
-  );
-}
-
-function createWorkoutExercise(exercise: ExerciseCatalogItem, equipment: EquipmentListItem): WorkoutExercise {
+function createWorkoutExercise(
+  exercise: ExerciseCatalogItem,
+  equipment: ExerciseEquipmentOption | null,
+): WorkoutExercise {
   return {
-    id: `${exercise.id}:${equipment.id}:${Date.now()}`,
+    id: `${exercise.id}:${equipment?.id ?? 'none'}:${Date.now()}`,
     exerciseId: exercise.id,
-    equipmentId: equipment.id,
+    equipmentId: equipment?.id ?? null,
     name: exercise.name,
-    equipmentName: equipment.name,
+    equipmentName: equipment?.name ?? 'No equipment needed',
     notes: exercise.targetMuscle ? pretty(exercise.targetMuscle) : undefined,
     sets: [{ ...EMPTY_SET }],
   };
 }
 
 function createRoutineWorkoutExercise(
-  savedExercise: { id: string; exercise_id: string; equipment_id: string; sets: { weight: number; reps: number }[] },
+  savedExercise: { id: string; exercise_id: string; equipment_id: string | null; sets: { weight: number; reps: number }[] },
   catalogExercises: ExerciseCatalogItem[],
   equipment: EquipmentListItem[],
 ): WorkoutExercise {
   const catalogExercise = catalogExercises.find((item) => item.id === savedExercise.exercise_id);
-  const matchedEquipment = equipment.find((item) => item.id === savedExercise.equipment_id);
+  const matchedEquipment = savedExercise.equipment_id
+    ? equipment.find((item) => item.id === savedExercise.equipment_id) ?? null
+    : null;
   const savedSets = savedExercise.sets.length > 0 ? savedExercise.sets : [{ weight: 0, reps: 0 }];
 
   return {
-    id: `${savedExercise.exercise_id}:${savedExercise.equipment_id}:${Date.now()}:${savedExercise.id}`,
+    id: `${savedExercise.exercise_id}:${savedExercise.equipment_id ?? 'none'}:${Date.now()}:${savedExercise.id}`,
     exerciseId: savedExercise.exercise_id,
     equipmentId: savedExercise.equipment_id,
     name: catalogExercise?.name ?? `Exercise #${savedExercise.exercise_id}`,
-    equipmentName: matchedEquipment?.name ?? `Equipment #${savedExercise.equipment_id}`,
+    equipmentName: matchedEquipment?.name ?? (savedExercise.equipment_id ? `Equipment #${savedExercise.equipment_id}` : 'No equipment needed'),
     notes: catalogExercise?.targetMuscle ? pretty(catalogExercise.targetMuscle) : undefined,
     sets: savedSets.map((set) => ({
       previous: set.weight > 0 && set.reps > 0 ? `${set.weight} kg × ${set.reps}` : '—',
@@ -133,13 +129,23 @@ export default function WorkoutScreen() {
   } = useExercises();
   const { equipment, loading: equipmentLoading, error: equipmentError, refresh: refreshEquipment } = useEquipment();
   const [exerciseQuery, setExerciseQuery] = useState('');
+  const [pickerEquipment, setPickerEquipment] = useState('All');
+  const [pickerMuscle, setPickerMuscle] = useState('All');
+  const [pickerLevel, setPickerLevel] = useState('All');
   const {
     exercises: catalogExercises,
     filteredExercises,
+    equipmentOptions,
+    muscleOptions,
+    levelOptions,
     loading: catalogLoading,
     error: catalogError,
     refresh: refreshCatalog,
-  } = useExerciseCatalog(exerciseQuery);
+  } = useExerciseCatalog(exerciseQuery, {
+    equipment: pickerEquipment,
+    muscle: pickerMuscle,
+    level: pickerLevel,
+  });
 
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [startedAt, setStartedAt] = useState(Date.now());
@@ -193,11 +199,6 @@ export default function WorkoutScreen() {
       ) ?? null
     );
   }, [workouts, activeRoutineId]);
-
-  const exerciseMatches = useMemo(
-    () => filteredExercises.slice(0, 40).map((exercise) => ({ exercise, equipment: matchEquipmentForExercise(exercise, equipment) })),
-    [equipment, filteredExercises],
-  );
 
   useEffect(() => {
     let isCurrent = true;
@@ -298,17 +299,15 @@ export default function WorkoutScreen() {
     }
   }, [createWorkout, lastCompletedWorkout?.target_muscle, routineExercises, selectedRoutine]);
 
-  const addSelectedExercise = (exercise: ExerciseCatalogItem, matchedEquipment: EquipmentListItem | null) => {
-    if (!matchedEquipment) {
-      setFormMessage('No matching live equipment row was found for this exercise.');
-      return;
-    }
-
+  const addSelectedExercise = (exercise: ExerciseCatalogItem, matchedEquipment: ExerciseEquipmentOption | null) => {
     setExercises((prev) => [...prev, createWorkoutExercise(exercise, matchedEquipment)]);
     setTouchedFields({});
     setFormMessage(null);
     setShowExercisePicker(false);
     setExerciseQuery('');
+    setPickerEquipment('All');
+    setPickerMuscle('All');
+    setPickerLevel('All');
   };
 
   const updateSet = (exIdx: number, sIdx: number, patch: Partial<WorkoutSet>) => {
@@ -730,7 +729,10 @@ export default function WorkoutScreen() {
         {exercises.map((ex, exIdx) => (
           <Card key={ex.id} style={{ marginBottom: Space.md }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Space.sm }}>
-              <Pressable onPress={() => router.push(`/equipment/${ex.equipmentId}`)}>
+              <Pressable
+                onPress={() => ex.equipmentId && router.push(`/equipment/${ex.equipmentId}`)}
+                disabled={ex.equipmentId === null}
+              >
                 <Text style={{ color: t.primary, fontSize: Size.md, fontWeight: '800' }}>{ex.name}</Text>
                 <Text style={{ color: t.textMuted, fontSize: 10, marginTop: 2 }}>{ex.equipmentName}</Text>
               </Pressable>
@@ -806,55 +808,31 @@ export default function WorkoutScreen() {
                 <Text style={{ color: t.textMuted, fontSize: Size.xl }}>✕</Text>
               </Pressable>
             </View>
-            <TextInput
-              value={exerciseQuery}
-              onChangeText={setExerciseQuery}
-              placeholder="Search live exercises…"
-              placeholderTextColor={t.textMuted}
-              style={{ color: t.text, backgroundColor: t.surface2, borderRadius: Radius.full, paddingHorizontal: Space.lg, paddingVertical: 12, borderWidth: 1, borderColor: t.borderLight }}
-            />
-            {catalogError || equipmentError ? (
-              <Card style={{ borderColor: withAlpha(t.warning, 0.35), backgroundColor: withAlpha(t.warning, 0.08), gap: Space.xs }}>
-                <Text style={{ color: t.warning, fontSize: Size.sm, fontWeight: '800' }}>Live catalog warning</Text>
-                <Text style={{ color: t.textSecondary, fontSize: Size.xs }}>{catalogError ?? equipmentError}</Text>
-                <Button title="Retry" variant="secondary" onPress={() => { void refreshCatalog(); void refreshEquipment(); }} />
-              </Card>
-            ) : null}
-            {(catalogLoading && catalogExercises.length === 0) || equipmentLoading ? (
-              <View style={{ alignItems: 'center', paddingVertical: Space.lg }}>
-                <ActivityIndicator color={t.primary} />
-                <Text style={{ color: t.textMuted, fontSize: Size.xs, marginTop: Space.sm }}>Loading live catalog…</Text>
-              </View>
-            ) : (
-              <ScrollView contentContainerStyle={{ gap: Space.sm, paddingBottom: Space.lg }}>
-                {exerciseMatches.map(({ exercise, equipment: matchedEquipment }) => (
-                  <Pressable key={exercise.id} disabled={!matchedEquipment} onPress={() => addSelectedExercise(exercise, matchedEquipment)}>
-                    <Card style={{ gap: Space.xs, opacity: matchedEquipment ? 1 : 0.45 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{exercise.name}</Text>
-                          <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 3 }}>
-                            {[pretty(exercise.equipmentRequired ?? 'No equipment'), pretty(exercise.level ?? 'Any level'), pretty(exercise.category ?? 'Exercise')].join(' · ')}
-                          </Text>
-                        </View>
-                        <Text style={{ color: matchedEquipment ? t.primary : t.warning, fontSize: Size.xs, fontWeight: '800' }}>
-                          {matchedEquipment ? 'Add' : 'No equipment match'}
-                        </Text>
-                      </View>
-                      {matchedEquipment ? (
-                        <Text style={{ color: t.textMuted, fontSize: 10 }}>Equipment row: {matchedEquipment.name}</Text>
-                      ) : null}
-                    </Card>
-                  </Pressable>
-                ))}
-                {exerciseMatches.length === 0 ? (
-                  <Card style={{ alignItems: 'center', gap: Space.sm }}>
-                    <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>No exercises found</Text>
-                    <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center' }}>Try a broader search term.</Text>
-                  </Card>
-                ) : null}
-              </ScrollView>
-            )}
+            <ScrollView contentContainerStyle={{ paddingBottom: Space.lg }}>
+              <ExerciseFilterPanel
+                mode="add"
+                exercises={catalogExercises}
+                filteredExercises={filteredExercises}
+                equipmentOptions={equipmentOptions}
+                muscleOptions={muscleOptions}
+                levelOptions={levelOptions}
+                loading={catalogLoading || equipmentLoading}
+                error={catalogError ?? equipmentError}
+                onRetry={() => {
+                  void refreshCatalog();
+                  void refreshEquipment();
+                }}
+                query={exerciseQuery}
+                onQueryChange={setExerciseQuery}
+                equipmentFilter={pickerEquipment}
+                onEquipmentFilterChange={setPickerEquipment}
+                muscleFilter={pickerMuscle}
+                onMuscleFilterChange={setPickerMuscle}
+                levelFilter={pickerLevel}
+                onLevelFilterChange={setPickerLevel}
+                onAddExercise={addSelectedExercise}
+              />
+            </ScrollView>
           </View>
         </View>
       </Modal>
