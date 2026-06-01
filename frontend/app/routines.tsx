@@ -140,7 +140,7 @@ export default function RoutineEditorScreen() {
             </Text>
             <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
               Exercises, sets, and reps are recorded when you start a workout from this routine.
-              The most recent completed workout becomes the routine's current contents.
+              The most recent completed workout becomes the routine&apos;s current contents.
             </Text>
 
             <TextInput

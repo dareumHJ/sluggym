@@ -151,7 +151,7 @@ export function useExerciseCatalog(query = '', filters: ExerciseFilters = {}): U
 
     // Group equipment options by exercise_id
     const optionsByExerciseId = new Map<string, ExerciseEquipmentOption[]>();
-    for (const row of (mappingData ?? []) as ExerciseEquipmentRow[]) {
+    for (const row of (mappingData ?? []) as unknown as ExerciseEquipmentRow[]) {
       // Supabase returns the joined row as either object or array depending on cardinality
       const joined = Array.isArray(row.gym_equipment) ? row.gym_equipment[0] : row.gym_equipment;
       if (!joined) continue;

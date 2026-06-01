@@ -5,7 +5,7 @@ import { useEquipment } from '../src/hooks/useEquipment';
 import { useExerciseCatalog } from '../src/hooks/useExerciseCatalog';
 import { useExercises } from '../src/hooks/useExercises';
 import { useWorkouts } from '../src/hooks/useWorkouts';
-import { useRoutines } from '../src/hooks/useRoutines';
+import { useRoutines, type Routine } from '../src/hooks/useRoutines';
 
 const mockPush = jest.fn();
 const mockSetParams = jest.fn();
@@ -105,7 +105,7 @@ const otherRoutine = {
 
 function setupMocks({
   withHistory = false,
-  routines = [] as typeof sampleRoutine[],
+  routines = [] as Routine[],
   routinesLoading = false,
   routinesError = null as string | null,
 } = {}) {
@@ -191,9 +191,10 @@ function setupMocks({
     addExercise: jest.fn(async () => { throw new Error('not used'); }),
     endExercise: jest.fn(async () => { throw new Error('not used'); }),
     addSet: jest.fn(async () => { throw new Error('not used'); }),
-    updateSet: jest.fn(async () => { throw new Error('not used'); }),
-    deleteSet: jest.fn(async () => undefined),
-    getExercisesForWorkout,
+      updateSet: jest.fn(async () => { throw new Error('not used'); }),
+      deleteSet: jest.fn(async () => undefined),
+      deleteExercise: jest.fn(async () => undefined),
+      getExercisesForWorkout,
     getActiveExercise: jest.fn(async () => null),
     hydrateActiveExercise: jest.fn(async () => null),
   } as ReturnType<typeof useExercises>);

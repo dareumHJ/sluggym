@@ -24,6 +24,7 @@ const workout: Workout = {
   user_id: 'u-1',
   name: 'Push Day',
   target_muscle: ['Chest'],
+  routine_id: null,
   started_at: '2026-05-10T01:00:00.000Z',
   ended_at: '2026-05-10T02:00:00.000Z',
   duration_min: 60,
