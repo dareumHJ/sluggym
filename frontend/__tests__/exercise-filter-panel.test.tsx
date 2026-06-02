@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { ExerciseFilterPanel } from '../src/components/ExerciseFilterPanel';
 import type { ExerciseCatalogItem } from '../src/hooks/useExerciseCatalog';
 
@@ -69,10 +69,11 @@ function setup(overrides: Partial<React.ComponentProps<typeof ExerciseFilterPane
 }
 
 describe('ExerciseFilterPanel — view mode', () => {
-  it('renders all exercises with their equipment chips', () => {
+  it('renders all exercises with their equipment chips', async () => {
     setup();
 
     expect(screen.getByText('Barbell Bench Press')).toBeTruthy();
+    await waitFor(() => expect(screen.getByLabelText('Barbell Bench Press exercise image')).toBeTruthy());
     expect(screen.getByText('Push Up')).toBeTruthy();
     expect(screen.getByText('Dumbbell Curl')).toBeTruthy();
     // Equipment names appear in BOTH the top filter chips and the per-row equipment chips,

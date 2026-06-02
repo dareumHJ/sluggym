@@ -8,14 +8,15 @@
 //             multiple options exist, or accepts "No equipment needed" when
 //             the exercise has no mapping.
 
-import React, { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Radius, Size, Space, useTheme, withAlpha } from '../constants/theme';
 import { Card } from './primitives';
 import type {
   ExerciseCatalogItem,
   ExerciseEquipmentOption,
 } from '../hooks/useExerciseCatalog';
+import { getExerciseImageFrameUrls } from '../lib/exerciseImages';
 
 export type ExerciseFilterMode = 'view' | 'add';
 
@@ -101,26 +102,85 @@ function FilterChips({
 interface ResultRowProps {
   exercise: ExerciseCatalogItem;
   mode: ExerciseFilterMode;
+  frameTick: number;
   selectedEquipmentId: string | null;
   onPickEquipment: (equipmentId: string) => void;
   onAdd: () => void;
   theme: ReturnType<typeof useTheme>;
 }
 
-function ResultRow({ exercise, mode, selectedEquipmentId, onPickEquipment, onAdd, theme }: ResultRowProps) {
+function ExerciseThumbnail({ name, frameTick, theme }: { name: string; frameTick: number; theme: ReturnType<typeof useTheme> }) {
+  const frameUrls = useMemo(() => getExerciseImageFrameUrls(name), [name]);
+  const [failedUrls, setFailedUrls] = useState<Record<string, boolean>>({});
+  const [loadedUrls, setLoadedUrls] = useState<Record<string, boolean>>({});
+  const availableFrameUrls = frameUrls.filter((url) => !failedUrls[url]);
+  const preferredImageUrl = availableFrameUrls.length > 0 ? availableFrameUrls[frameTick % availableFrameUrls.length] : null;
+  const fallbackLoadedUrl = availableFrameUrls.find((url) => loadedUrls[url]) ?? null;
+  const visibleImageUrl = preferredImageUrl && loadedUrls[preferredImageUrl]
+    ? preferredImageUrl
+    : fallbackLoadedUrl ?? preferredImageUrl;
+
+  useEffect(() => {
+    setFailedUrls({});
+    setLoadedUrls({});
+  }, [name]);
+
+  return (
+    <View
+      style={{
+        width: 58,
+        height: 58,
+        borderRadius: Radius.md,
+        backgroundColor: theme.surface2,
+        borderWidth: 1,
+        borderColor: theme.borderLight,
+        overflow: 'hidden',
+        flexShrink: 0,
+      }}
+    >
+      {availableFrameUrls.map((imageUrl) => (
+        <Image
+          key={imageUrl}
+          source={{ uri: imageUrl, cache: 'force-cache' }}
+          accessibilityElementsHidden={imageUrl !== visibleImageUrl}
+          accessibilityLabel={imageUrl === visibleImageUrl ? `${name} exercise image` : undefined}
+          importantForAccessibility={imageUrl === visibleImageUrl ? 'auto' : 'no-hide-descendants'}
+          onLoad={() => setLoadedUrls((current) => ({ ...current, [imageUrl]: true }))}
+          onError={() => setFailedUrls((current) => ({ ...current, [imageUrl]: true }))}
+          resizeMode="cover"
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            opacity: imageUrl === visibleImageUrl ? 1 : 0,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
+function ResultRow({ exercise, mode, frameTick, selectedEquipmentId, onPickEquipment, onAdd, theme }: ResultRowProps) {
   const hasEquipmentOptions = exercise.equipmentOptions.length > 0;
   const requiresPick = mode === 'add' && hasEquipmentOptions && selectedEquipmentId === null;
 
   return (
     <Card style={{ gap: Space.sm }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: theme.text, fontSize: Size.md, fontWeight: '800' }}>{exercise.name}</Text>
-          <Text style={{ color: theme.textSecondary, fontSize: Size.xs, marginTop: 3 }}>
-            {[pretty(exercise.level ?? 'Any level'), pretty(exercise.category ?? 'Exercise'), pretty(exercise.targetMuscle ?? '')]
-              .filter(Boolean)
-              .join(' · ')}
-          </Text>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
+          <ExerciseThumbnail name={exercise.name} frameTick={frameTick} theme={theme} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.text, fontSize: Size.md, fontWeight: '800' }}>{exercise.name}</Text>
+            <Text style={{ color: theme.textSecondary, fontSize: Size.xs, marginTop: 3 }}>
+              {[pretty(exercise.level ?? 'Any level'), pretty(exercise.category ?? 'Exercise'), pretty(exercise.targetMuscle ?? '')]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+          </View>
         </View>
         {mode === 'add' ? (
           <Pressable
@@ -208,6 +268,15 @@ export function ExerciseFilterPanel({
   const t = useTheme();
   // Local selection state for equipment chip within each result row.
   const [selectedEquipmentByExercise, setSelectedEquipmentByExercise] = useState<Record<string, string>>({});
+  const [frameTick, setFrameTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFrameTick((current) => current + 1);
+    }, 1200);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Auto-select the only option when an exercise has exactly one equipment.
   // This removes a click for the common case while still requiring an explicit
@@ -344,6 +413,7 @@ export function ExerciseFilterPanel({
                 key={exercise.id}
                 exercise={exercise}
                 mode={mode}
+                frameTick={frameTick}
                 selectedEquipmentId={selectedEquipmentByExercise[exercise.id] ?? null}
                 onPickEquipment={(equipmentId) =>
                   setSelectedEquipmentByExercise((prev) => ({ ...prev, [exercise.id]: equipmentId }))

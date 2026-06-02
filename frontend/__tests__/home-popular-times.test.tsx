@@ -130,6 +130,7 @@ describe('Home Popular Times history integration', () => {
       addSet: jest.fn(async () => { throw new Error('not used'); }),
       updateSet: jest.fn(async () => { throw new Error('not used'); }),
       deleteSet: jest.fn(async () => undefined),
+      deleteExercise: jest.fn(async () => undefined),
       getExercisesForWorkout: jest.fn(async () => []),
       getActiveExercise: jest.fn(async () => null),
       hydrateActiveExercise: jest.fn(async () => null),

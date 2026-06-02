@@ -39,6 +39,7 @@ describe('WorkoutHistoryDetailScreen', () => {
         user_id: 'u-1',
         name: 'Push Day',
         target_muscle: ['Chest', 'Triceps'],
+        routine_id: null,
         started_at: '2026-05-10T01:00:00.000Z',
         ended_at: '2026-05-10T02:05:00.000Z',
         duration_min: 65,
@@ -56,6 +57,7 @@ describe('WorkoutHistoryDetailScreen', () => {
       addSet: jest.fn(async () => { throw new Error('not used'); }),
       updateSet: jest.fn(async () => { throw new Error('not used'); }),
       deleteSet: jest.fn(async () => undefined),
+      deleteExercise: jest.fn(async () => undefined),
       getExercisesForWorkout: jest.fn(async () => [
         {
           id: 'we-1',

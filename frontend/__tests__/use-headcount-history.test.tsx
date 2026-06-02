@@ -43,7 +43,7 @@ describe('useHeadcountHistory', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(fromMock).toHaveBeenCalledWith('gym_headcount_history');
-    expect(query.select).toHaveBeenCalledWith('count, capacity, sampled_at');
+    expect(query.select).toHaveBeenCalledWith('count, sampled_at');
     expect(result.current.empty).toBe(false);
     expect(result.current.popularTimes[9]).toBe(60);
     expect(result.current.popularTimes[10]).toBe(30);

@@ -399,6 +399,15 @@ export default function WorkoutScreen() {
     () => exercises.some((exercise) => exercise.sets.some((set) => set.completed && !validateSet(set).isValid)),
     [exercises],
   );
+  const hasCompletedExerciseWithoutEquipment = useMemo(
+    () =>
+      exercises.some(
+        (exercise) =>
+          exercise.equipmentId === null &&
+          exercise.sets.some((set) => set.completed && validateSet(set).isValid),
+      ),
+    [exercises],
+  );
 
   const requestEndSession = () => {
     setFinishAttempted(true);
@@ -413,6 +422,10 @@ export default function WorkoutScreen() {
       setFormMessage('Fix invalid completed sets before ending this session.');
       return;
     }
+    if (hasCompletedExerciseWithoutEquipment) {
+      setFormMessage('Completed sets need an equipment mapping before they can be saved.');
+      return;
+    }
     setFormMessage(null);
     setShowEndModal(true);
   };
@@ -424,6 +437,9 @@ export default function WorkoutScreen() {
     for (const exercise of exercises) {
       const completedSets = exercise.sets.filter((set) => set.completed && validateSet(set).isValid);
       if (completedSets.length === 0) continue;
+      if (exercise.equipmentId === null) {
+        throw new Error('Completed sets need an equipment mapping before they can be saved.');
+      }
 
       const workoutExercise = await persistExercise({
         workoutId: activeWorkout.id,
