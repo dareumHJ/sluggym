@@ -66,9 +66,7 @@ describe('useEquipmentMap Hook (SLU-141)', () => {
       categories: [],
       loading: false,
       error: null,
-      connectionState: 'live',
       refresh: jest.fn(async () => undefined),
-      simulateRealtimeDisconnect: jest.fn(),
     });
 
     const { result } = renderHook(() => useEquipmentMap());

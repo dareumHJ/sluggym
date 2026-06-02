@@ -2,7 +2,7 @@
 import React from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useTheme, useTweaks, Space, Size } from '../src/constants/theme';
+import { useTheme, Space, Size } from '../src/constants/theme';
 import { Button, Card, StatTile } from '../src/components/primitives';
 
 function fmt(sec: number) {
@@ -19,7 +19,6 @@ function parseParam(value: string | string[] | undefined, fallback = 0) {
 
 export default function WorkoutSummaryScreen() {
   const t = useTheme();
-  const { tweaks } = useTweaks();
   const params = useLocalSearchParams<{
     durationSec?: string;
     exerciseCount?: string;
@@ -30,8 +29,7 @@ export default function WorkoutSummaryScreen() {
   const durationSec = parseParam(params.durationSec);
   const exerciseCount = parseParam(params.exerciseCount);
   const sets = parseParam(params.sets);
-  const volumeKg = parseParam(params.volume);
-  const volume = tweaks.units === 'kg' ? volumeKg : Math.round(volumeKg * 2.20462);
+  const volume = parseParam(params.volume);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: Space.lg, paddingTop: Space['4xl'], paddingBottom: 120 }}>
@@ -51,7 +49,7 @@ export default function WorkoutSummaryScreen() {
       </View>
       <View style={{ flexDirection: 'row', gap: Space.sm, marginTop: Space.sm }}>
         <StatTile value={exerciseCount} label="Exercises" />
-        <StatTile value={volume.toLocaleString()} label={`Volume ${tweaks.units}`} />
+        <StatTile value={volume.toLocaleString()} label="Volume kg" />
       </View>
 
       <Card style={{ marginTop: Space.xl, gap: Space.sm }}>

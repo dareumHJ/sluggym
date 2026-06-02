@@ -16,10 +16,9 @@ We prioritize **readability over cleverness** to enable collective code ownershi
 
 | Layer | Rules |
 |---|---|
-| Frontend (TypeScript / React Native) | ESLint/Prettier rules in repo. `PascalCase` components, `camelCase` functions/hooks. |
-| Backend (FastAPI / Python) | PEP 8. Type hints required for public functions and endpoints. |
-| Backend (TypeScript) | Same TypeScript conventions as frontend. |
-| Database | `snake_case` for tables, columns, functions. Schema changes must go through migration files in `backend/supabase/migrations/` (no direct SQL Editor changes). Migration filenames follow `YYYYMMDDHHMMSS_description.sql`. |
+| Frontend | ESLint/Prettier rules in repo. `PascalCase` components, `camelCase` functions/hooks. |
+| Backend | PEP 8. Type hints required for public functions and endpoints. |
+| Database | `snake_case` for tables, columns, functions. Schema changes go through migration files. |
 
 ### Git & Communication
 
@@ -36,11 +35,11 @@ A PR is "Done" when it satisfies the **4 Rules of Simple Design**: tests pass, n
 
 ### PR Checklist
 
-- [ ] All relevant tests pass (`frontend/__tests__/`, `backend/__tests__/`)
+- [ ] All relevant tests pass (`frontend/__tests__/`, `backend/*.test.js`)
 - [ ] No duplicated logic — refactored into shared utilities where appropriate
 - [ ] Code is self-explanatory; no excessive comments needed
 - [ ] No debug logs, mock data, commented-out code, or unused imports
-- [ ] PR is focused on a single logical change
+- [ ] PR scope is focused (~400 lines or fewer of non-test changes)
 - [ ] RLS policies tested for both authenticated and anonymous contexts (if schema changed)
 - [ ] Schema documentation updated (if schema changed)
 - [ ] At least one teammate has reviewed and approved

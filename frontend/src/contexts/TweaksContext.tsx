@@ -4,15 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeCtx, makeTheme, Tweaks } from '../constants/theme';
 
 const KEY = 'sluggym.tweaks';
-const DEFAULT: Tweaks = {
-  mode: 'dark',
-  accent: 'lime',
-  occupancyStyle: 'ring',
-  currentOccupancy: 62,
-  units: 'kg',
-  equipmentNotifications: true,
-  privateProfile: false,
-};
+const DEFAULT: Tweaks = { mode: 'dark', accent: 'lime', occupancyStyle: 'ring', currentOccupancy: 62 };
 
 export function TweaksProvider({ children }: { children: React.ReactNode }) {
   const [tweaks, setTweaksState] = useState<Tweaks>(DEFAULT);

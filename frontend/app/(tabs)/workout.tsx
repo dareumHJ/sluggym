@@ -1,20 +1,13 @@
-// app/(tabs)/workout.tsx — multi-routine workout logger with Supabase persistence
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+// app/(tabs)/workout.tsx — Hevy-style logger with Supabase workout/exercise persistence
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useTheme, Space, Radius, Size, withAlpha } from '../../src/constants/theme';
 import { Card, Button, StatTile } from '../../src/components/primitives';
-import { ExerciseFilterPanel } from '../../src/components/ExerciseFilterPanel';
-import { ExerciseThumbnail, useExerciseImageFrameTick } from '../../src/components/ExerciseThumbnail';
 import { useEquipment, type EquipmentListItem } from '../../src/hooks/useEquipment';
-import {
-  useExerciseCatalog,
-  type ExerciseCatalogItem,
-  type ExerciseEquipmentOption,
-} from '../../src/hooks/useExerciseCatalog';
-import { useExercises, type WorkoutExerciseWithSets } from '../../src/hooks/useExercises';
+import { useExerciseCatalog, type ExerciseCatalogItem } from '../../src/hooks/useExerciseCatalog';
+import { useExercises } from '../../src/hooks/useExercises';
 import { useWorkouts } from '../../src/hooks/useWorkouts';
-import { useRoutines, type Routine } from '../../src/hooks/useRoutines';
 import { validateWorkoutReps, validateWorkoutSetCount, validateWorkoutWeight } from '../../src/lib/validation';
 
 function fmt(sec: number) { const m = Math.floor(sec/60), s = sec%60; return `${m}:${s.toString().padStart(2,'0')}`; }
@@ -22,11 +15,8 @@ function fmt(sec: number) { const m = Math.floor(sec/60), s = sec%60; return `${
 type WorkoutSet = { previous: string; kg: string; reps: string; completed: boolean };
 type WorkoutExercise = {
   id: string;
-  workoutExerciseId?: string;
-  lifecycle: 'planned' | 'active' | 'finished';
   exerciseId: string;
-  /** Null for exercises with no equipment mapping (e.g., bodyweight). */
-  equipmentId: string | null;
+  equipmentId: string;
   name: string;
   equipmentName: string;
   notes?: string;
@@ -35,8 +25,9 @@ type WorkoutExercise = {
 type FieldName = 'kg' | 'reps';
 
 const DEFAULT_WORKOUT_NAME = 'Workout Session';
-const DEFAULT_ROUTINE_GOAL = 'Build consistency with a repeatable strength session.';
 const EMPTY_SET: WorkoutSet = { previous: '—', kg: '', reps: '', completed: false };
+const normalize = (value: string | null | undefined) => (value ?? '').trim().toLowerCase();
+
 const fieldKey = (exerciseId: string, setIndex: number, field: FieldName) => `${exerciseId}:${setIndex}:${field}`;
 
 const parseNumber = (value: string) => {
@@ -56,108 +47,50 @@ function pretty(value: string) {
     .join(' ');
 }
 
-function formatLastUsed(lastUsedAt: string | null): string {
-  if (!lastUsedAt) return 'Never used';
-  const date = new Date(lastUsedAt);
-  if (isNaN(date.getTime())) return 'Never used';
+function matchEquipmentForExercise(exercise: ExerciseCatalogItem, equipment: EquipmentListItem[]) {
+  const required = normalize(exercise.equipmentRequired);
+  if (!required) return null;
 
-  const now = Date.now();
-  const diffMs = now - date.getTime();
-  const diffMin = Math.round(diffMs / 60_000);
-  if (diffMin < 60) return diffMin <= 1 ? 'Just now' : `${diffMin}m ago`;
-  const diffHour = Math.round(diffMin / 60);
-  if (diffHour < 24) return `${diffHour}h ago`;
-  const diffDay = Math.round(diffHour / 24);
-  if (diffDay < 7) return `${diffDay}d ago`;
-  return date.toLocaleDateString();
+  return (
+    equipment.find((item) => normalize(item.name) === required) ??
+    equipment.find((item) => normalize(item.name).includes(required) || required.includes(normalize(item.name))) ??
+    equipment.find((item) => normalize(item.category) === required) ??
+    equipment.find((item) => normalize(item.category).includes(required) || required.includes(normalize(item.category))) ??
+    null
+  );
 }
 
-function createWorkoutExercise(
-  exercise: ExerciseCatalogItem,
-  equipment: ExerciseEquipmentOption | null,
-): WorkoutExercise {
+function createWorkoutExercise(exercise: ExerciseCatalogItem, equipment: EquipmentListItem): WorkoutExercise {
   return {
-    id: `${exercise.id}:${equipment?.id ?? 'none'}:${Date.now()}`,
-    lifecycle: 'planned',
+    id: `${exercise.id}:${equipment.id}:${Date.now()}`,
     exerciseId: exercise.id,
-    equipmentId: equipment?.id ?? null,
+    equipmentId: equipment.id,
     name: exercise.name,
-    equipmentName: equipment?.name ?? 'No equipment needed',
+    equipmentName: equipment.name,
     notes: exercise.targetMuscle ? pretty(exercise.targetMuscle) : undefined,
     sets: [{ ...EMPTY_SET }],
   };
 }
 
-function createRoutineWorkoutExercise(
-  savedExercise: { id: string; exercise_id: string; equipment_id: string | null; sets: { weight: number; reps: number }[] },
-  catalogExercises: ExerciseCatalogItem[],
-  equipment: EquipmentListItem[],
-): WorkoutExercise {
-  const catalogExercise = catalogExercises.find((item) => item.id === savedExercise.exercise_id);
-  const matchedEquipment = savedExercise.equipment_id
-    ? equipment.find((item) => item.id === savedExercise.equipment_id) ?? null
-    : null;
-  const savedSets = savedExercise.sets.length > 0 ? savedExercise.sets : [{ weight: 0, reps: 0 }];
-
-  return {
-    id: `${savedExercise.exercise_id}:${savedExercise.equipment_id ?? 'none'}:${Date.now()}:${savedExercise.id}`,
-    lifecycle: 'planned',
-    exerciseId: savedExercise.exercise_id,
-    equipmentId: savedExercise.equipment_id,
-    name: catalogExercise?.name ?? `Exercise #${savedExercise.exercise_id}`,
-    equipmentName: matchedEquipment?.name ?? (savedExercise.equipment_id ? `Equipment #${savedExercise.equipment_id}` : 'No equipment needed'),
-    notes: catalogExercise?.targetMuscle ? pretty(catalogExercise.targetMuscle) : undefined,
-    sets: savedSets.map((set) => {
-      const hasValid = set.weight > 0 && set.reps > 0;
-      return {
-        previous: hasValid ? `${set.weight} kg × ${set.reps}` : '—',
-        // Pre-fill kg/reps with the previous workout's values so the user can
-        // either confirm or tweak instead of typing from scratch. Empty when
-        // there's no valid previous value to copy.
-        kg: hasValid ? String(set.weight) : '',
-        reps: hasValid ? String(set.reps) : '',
-        completed: false,
-      };
-    }),
-  };
-}
-
 export default function WorkoutScreen() {
   const t = useTheme();
-  const { id: routineIdParam } = useLocalSearchParams<{ id?: string }>();
-  const selectedRoutineId =
-    typeof routineIdParam === 'string' && routineIdParam.length > 0 ? routineIdParam : null;
-
-  const { routines, loading: routinesLoading, error: routinesError, refresh: refreshRoutines } = useRoutines();
-  const { workouts, activeWorkout, createWorkout, endWorkout, loading: workoutLoading, error: workoutError, refresh: refreshWorkouts } = useWorkouts();
+  const { activeWorkout, createWorkout, endWorkout, loading: workoutLoading, error: workoutError } = useWorkouts();
   const {
     addExercise: persistExercise,
     addSet: persistSet,
     endExercise: finishPersistedExercise,
-    deleteExercise: persistDeleteExercise,
-    getExercisesForWorkout,
     loading: exerciseSaving,
     error: exerciseSaveError,
   } = useExercises();
   const { equipment, loading: equipmentLoading, error: equipmentError, refresh: refreshEquipment } = useEquipment();
   const [exerciseQuery, setExerciseQuery] = useState('');
-  const [pickerEquipment, setPickerEquipment] = useState('All');
-  const [pickerMuscle, setPickerMuscle] = useState('All');
-  const [pickerLevel, setPickerLevel] = useState('All');
   const {
     exercises: catalogExercises,
     filteredExercises,
-    equipmentOptions,
-    muscleOptions,
-    levelOptions,
     loading: catalogLoading,
     error: catalogError,
     refresh: refreshCatalog,
-  } = useExerciseCatalog(exerciseQuery, {
-    equipment: pickerEquipment,
-    muscle: pickerMuscle,
-    level: pickerLevel,
-  });
+  } = useExerciseCatalog(exerciseQuery);
 
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [startedAt, setStartedAt] = useState(Date.now());
@@ -170,28 +103,8 @@ export default function WorkoutScreen() {
   const [endError, setEndError] = useState<string | null>(null);
   const [showEndModal, setShowEndModal] = useState(false);
   const [showExercisePicker, setShowExercisePicker] = useState(false);
-  /** Index of the exercise pending deletion confirmation. Null = no modal. */
-  const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
-  const [lastRoutineExercises, setLastRoutineExercises] = useState<WorkoutExerciseWithSets[]>([]);
-  const [routineLoading, setRoutineLoading] = useState(false);
-  const [routineError, setRoutineError] = useState<string | null>(null);
   const endingInFlight = ending || exerciseSaving;
-
-  useFocusEffect(
-    useCallback(() => {
-      void refreshRoutines();
-      void refreshWorkouts();
-    }, [refreshRoutines, refreshWorkouts]),
-  );
-
-  // If a workout is active, pin selection to its routine_id (so navigation can't lose context mid-workout)
-  const activeRoutineId = activeWorkout?.routine_id ?? selectedRoutineId;
-  const selectedRoutine: Routine | null = activeRoutineId
-    ? routines.find((routine) => routine.id === activeRoutineId) ?? null
-    : null;
 
   // workout timer
   useEffect(() => {
@@ -213,73 +126,9 @@ export default function WorkoutScreen() {
 
   const elapsed = Math.floor((now - startedAt) / 1000);
 
-  // Last completed workout *for this routine only*
-  const lastCompletedWorkout = useMemo(() => {
-    if (!activeRoutineId) return null;
-    return (
-      workouts.find(
-        (workout) => workout.ended_at !== null && workout.routine_id === activeRoutineId,
-      ) ?? null
-    );
-  }, [workouts, activeRoutineId]);
-
-  useEffect(() => {
-    let isCurrent = true;
-
-    if (!lastCompletedWorkout || activeWorkout) {
-      setLastRoutineExercises([]);
-      setRoutineError(null);
-      setRoutineLoading(false);
-      return () => {
-        isCurrent = false;
-      };
-    }
-
-    setRoutineLoading(true);
-    setRoutineError(null);
-
-    getExercisesForWorkout(lastCompletedWorkout.id)
-      .then((savedExercises) => {
-        if (!isCurrent) return;
-        setLastRoutineExercises(savedExercises);
-      })
-      .catch((error) => {
-        if (!isCurrent) return;
-        setLastRoutineExercises([]);
-        setRoutineError(getErrorMessage(error));
-      })
-      .finally(() => {
-        if (isCurrent) setRoutineLoading(false);
-      });
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [activeWorkout, getExercisesForWorkout, lastCompletedWorkout]);
-
-  const routineExercises = useMemo(
-    () =>
-      lastRoutineExercises.map((savedExercise) =>
-        createRoutineWorkoutExercise(savedExercise, catalogExercises, equipment),
-      ),
-    [catalogExercises, equipment, lastRoutineExercises],
-  );
-  const routineExerciseNames = useMemo(() => routineExercises.map((exercise) => exercise.name), [routineExercises]);
-  const routineFrameTick = useExerciseImageFrameTick(routineExerciseNames);
-  const activeExerciseNames = useMemo(() => exercises.map((exercise) => exercise.name), [exercises]);
-  const activeFrameTick = useExerciseImageFrameTick(activeExerciseNames);
-
-  const routineGoal = useMemo(() => {
-    if (selectedRoutine?.goal) return selectedRoutine.goal;
-    const muscles = lastCompletedWorkout?.target_muscle ?? [];
-    return muscles.length > 0 ? muscles.join(', ') : DEFAULT_ROUTINE_GOAL;
-  }, [selectedRoutine, lastCompletedWorkout?.target_muscle]);
-
-  const routineDisplayName = selectedRoutine?.name ?? DEFAULT_WORKOUT_NAME;
-
-  const routineSetCount = useMemo(
-    () => lastRoutineExercises.reduce((sum, exercise) => sum + exercise.sets.length, 0),
-    [lastRoutineExercises],
+  const exerciseMatches = useMemo(
+    () => filteredExercises.slice(0, 40).map((exercise) => ({ exercise, equipment: matchEquipmentForExercise(exercise, equipment) })),
+    [equipment, filteredExercises],
   );
 
   const totals = useMemo(() => {
@@ -299,94 +148,38 @@ export default function WorkoutScreen() {
     () => exercises.filter((exercise) => exercise.sets.some((set) => set.completed && validateSet(set).isValid)).length,
     [exercises],
   );
-  const hasActiveExercise = useMemo(() => exercises.some((exercise) => exercise.lifecycle === 'active'), [exercises]);
 
-  const startRoutineSession = useCallback(async () => {
-    if (!selectedRoutine) {
-      setFormMessage('Pick a routine before starting a workout.');
-      return;
-    }
-
+  const startNewSession = async () => {
     setFormMessage(null);
     setEndError(null);
     setTouchedFields({});
     setFinishAttempted(false);
-    setExercises(routineExercises);
+    setExercises([]);
     setExerciseQuery('');
     setStartedAt(Date.now());
     setNow(Date.now());
 
     try {
-      await createWorkout({
-        name: selectedRoutine.name,
-        target_muscle: lastCompletedWorkout?.target_muscle ?? selectedRoutine.targetMuscles ?? [],
-        routine_id: selectedRoutine.id,
-      });
+      await createWorkout({ name: DEFAULT_WORKOUT_NAME, target_muscle: [] });
     } catch (error) {
       setFormMessage(getErrorMessage(error));
     }
-  }, [createWorkout, lastCompletedWorkout?.target_muscle, routineExercises, selectedRoutine]);
+  };
 
-  const addSelectedExercise = (exercise: ExerciseCatalogItem, matchedEquipment: ExerciseEquipmentOption | null) => {
+  const addSelectedExercise = (exercise: ExerciseCatalogItem, matchedEquipment: EquipmentListItem | null) => {
+    if (!matchedEquipment) {
+      setFormMessage('No matching live equipment row was found for this exercise.');
+      return;
+    }
+
     setExercises((prev) => [...prev, createWorkoutExercise(exercise, matchedEquipment)]);
     setTouchedFields({});
     setFormMessage(null);
     setShowExercisePicker(false);
     setExerciseQuery('');
-    setPickerEquipment('All');
-    setPickerMuscle('All');
-    setPickerLevel('All');
-  };
-
-  /** Open the delete confirmation modal for the exercise at index. */
-  const requestRemoveExercise = (exIdx: number) => {
-    setDeleteError(null);
-    setPendingDeleteIdx(exIdx);
-  };
-
-  /**
-   * Confirm exercise removal. Removes from local state, and — if the active
-   * workout already has a persisted row for this exercise — deletes that row
-   * from the DB so the data doesn't outlive the user's intent.
-   *
-   * Persisted rows are identified by querying workout_exercises for the
-   * active workout and matching on exercise_id + equipment_id. This is
-   * tolerant of multiple instances of the same exercise within one workout
-   * (only the first match is deleted).
-   */
-  const confirmRemoveExercise = async () => {
-    if (pendingDeleteIdx === null) return;
-    const idx = pendingDeleteIdx;
-    const target = exercises[idx];
-    if (!target) {
-      setPendingDeleteIdx(null);
-      return;
-    }
-
-    setDeleting(true);
-    setDeleteError(null);
-
-    try {
-      if (target.workoutExerciseId) {
-        await persistDeleteExercise(target.workoutExerciseId);
-      }
-
-      setExercises((prev) => prev.filter((_, i) => i !== idx));
-      setTouchedFields({});
-      setFormMessage(null);
-      setPendingDeleteIdx(null);
-    } catch (error) {
-      setDeleteError(getErrorMessage(error));
-    } finally {
-      setDeleting(false);
-    }
   };
 
   const updateSet = (exIdx: number, sIdx: number, patch: Partial<WorkoutSet>) => {
-    if (exercises[exIdx]?.lifecycle === 'finished') {
-      setFormMessage('Finished exercises cannot be edited.');
-      return;
-    }
     setExercises(prev => prev.map((e, i) => i === exIdx ? { ...e, sets: e.sets.map((s, j) => j === sIdx ? { ...s, ...patch } : s) } : e));
     setFormMessage(null);
   };
@@ -410,24 +203,6 @@ export default function WorkoutScreen() {
     () => exercises.some((exercise) => exercise.sets.some((set) => set.completed && !validateSet(set).isValid)),
     [exercises],
   );
-  const hasCompletedExerciseWithoutEquipment = useMemo(
-    () =>
-      exercises.some(
-        (exercise) =>
-          exercise.equipmentId === null &&
-          exercise.sets.some((set) => set.completed && validateSet(set).isValid),
-      ),
-    [exercises],
-  );
-  const hasCompletedPlannedExercise = useMemo(
-    () =>
-      exercises.some(
-        (exercise) =>
-          exercise.lifecycle === 'planned' &&
-          exercise.sets.some((set) => set.completed && validateSet(set).isValid),
-      ),
-    [exercises],
-  );
 
   const requestEndSession = () => {
     setFinishAttempted(true);
@@ -442,122 +217,37 @@ export default function WorkoutScreen() {
       setFormMessage('Fix invalid completed sets before ending this session.');
       return;
     }
-    if (hasCompletedExerciseWithoutEquipment) {
-      setFormMessage('Completed sets need an equipment mapping before they can be saved.');
-      return;
-    }
-    if (hasCompletedPlannedExercise) {
-      setFormMessage('Start each exercise before completing sets so equipment availability stays accurate.');
-      return;
-    }
     setFormMessage(null);
     setShowEndModal(true);
   };
 
-  const persistCompletedSetsForExercise = async (exercise: WorkoutExercise) => {
-    if (!exercise.workoutExerciseId) {
-      throw new Error('Start this exercise before saving sets.');
-    }
+  const persistCompletedExercises = async () => {
+    if (!activeWorkout) return;
 
-    const completedSets = exercise.sets.filter((set) => set.completed && validateSet(set).isValid);
-    for (const [setIndex, set] of completedSets.entries()) {
-      await persistSet({
-        workoutExerciseId: exercise.workoutExerciseId,
-        setNumber: setIndex + 1,
-        weight: parseNumber(set.kg),
-        reps: parseNumber(set.reps),
-        isCompleted: true,
-      });
-    }
-  };
+    let orderIndex = 1;
+    for (const exercise of exercises) {
+      const completedSets = exercise.sets.filter((set) => set.completed && validateSet(set).isValid);
+      if (completedSets.length === 0) continue;
 
-  const startExercise = async (exIdx: number) => {
-    const exercise = exercises[exIdx];
-    if (!exercise) return;
-    if (!activeWorkout) {
-      setFormMessage('Start a session before starting an exercise.');
-      return;
-    }
-    if (exercise.lifecycle === 'active') return;
-    if (exercise.lifecycle === 'finished') {
-      setFormMessage('This exercise is already finished.');
-      return;
-    }
-    if (hasActiveExercise) {
-      setFormMessage('Finish the current exercise before starting another one.');
-      return;
-    }
-    if (exercise.equipmentId === null) {
-      setFormMessage('Choose a mapped equipment option before starting this exercise.');
-      return;
-    }
-
-    setFormMessage(null);
-    setEndError(null);
-
-    try {
-      const persisted = await persistExercise({
+      const workoutExercise = await persistExercise({
         workoutId: activeWorkout.id,
         exerciseId: exercise.exerciseId,
         equipmentId: exercise.equipmentId,
-        orderIndex: exIdx + 1,
+        orderIndex,
       });
-      setExercises((prev) =>
-        prev.map((item, index) =>
-          index === exIdx ? { ...item, workoutExerciseId: persisted.id, lifecycle: 'active' } : item,
-        ),
-      );
-      void refreshEquipment();
-    } catch (error) {
-      setFormMessage(getErrorMessage(error));
-    }
-  };
 
-  const finishExercise = async (exIdx: number) => {
-    const exercise = exercises[exIdx];
-    if (!exercise) return;
-    if (exercise.lifecycle !== 'active') {
-      setFormMessage('Start this exercise before finishing it.');
-      return;
-    }
-    if (!exercise.workoutExerciseId || !exercise.equipmentId) {
-      setFormMessage('This exercise is missing its equipment reservation.');
-      return;
-    }
-
-    const hasInvalidCompleted = exercise.sets.some((set) => set.completed && !validateSet(set).isValid);
-    if (hasInvalidCompleted) {
-      setFinishAttempted(true);
-      setFormMessage('Fix invalid completed sets before finishing this exercise.');
-      return;
-    }
-
-    setFormMessage(null);
-    setEndError(null);
-
-    try {
-      await persistCompletedSetsForExercise(exercise);
-      await finishPersistedExercise(exercise.workoutExerciseId, exercise.equipmentId);
-      setExercises((prev) =>
-        prev.map((item, index) => (index === exIdx ? { ...item, lifecycle: 'finished' } : item)),
-      );
-      void refreshEquipment();
-    } catch (error) {
-      setFormMessage(getErrorMessage(error));
-    }
-  };
-
-  const finishActiveExercises = async () => {
-    if (!activeWorkout) return;
-
-    for (const exercise of exercises) {
-      if (exercise.lifecycle !== 'active') continue;
-      if (!exercise.workoutExerciseId || !exercise.equipmentId) {
-        throw new Error('An active exercise is missing its equipment reservation.');
+      for (const [setIndex, set] of completedSets.entries()) {
+        await persistSet({
+          workoutExerciseId: workoutExercise.id,
+          setNumber: setIndex + 1,
+          weight: parseNumber(set.kg),
+          reps: parseNumber(set.reps),
+          isCompleted: true,
+        });
       }
 
-      await persistCompletedSetsForExercise(exercise);
-      await finishPersistedExercise(exercise.workoutExerciseId, exercise.equipmentId);
+      await finishPersistedExercise(workoutExercise.id, exercise.equipmentId);
+      orderIndex += 1;
     }
   };
 
@@ -568,11 +258,9 @@ export default function WorkoutScreen() {
     setEndError(null);
 
     try {
-      await finishActiveExercises();
+      await persistCompletedExercises();
       await endWorkout(activeWorkout.id);
       setShowEndModal(false);
-      // Refresh routines so last_used_at sorts this routine to the top next time
-      void refreshRoutines();
       router.replace(`/workout-summary?durationSec=${elapsed}&sets=${totals.sets}&volume=${totals.volume}&exerciseCount=${completedExerciseCount}`);
     } catch (error) {
       setEndError(getErrorMessage(error));
@@ -582,14 +270,6 @@ export default function WorkoutScreen() {
   };
 
   const toggleComplete = (exIdx: number, sIdx: number) => {
-    if (exercises[exIdx].lifecycle === 'planned') {
-      setFormMessage('Start this exercise before completing sets.');
-      return;
-    }
-    if (exercises[exIdx].lifecycle === 'finished') {
-      setFormMessage('Finished exercises cannot be changed.');
-      return;
-    }
     const s = exercises[exIdx].sets[sIdx];
     if (!s.completed && !validateSet(s).isValid) {
       markSetTouched(exercises[exIdx].id, sIdx);
@@ -603,10 +283,6 @@ export default function WorkoutScreen() {
   };
 
   const addSet = (exIdx: number) => {
-    if (exercises[exIdx]?.lifecycle === 'finished') {
-      setFormMessage('Finished exercises cannot be changed.');
-      return;
-    }
     setExercises(prev => prev.map((e, i) => {
       if (i !== exIdx) return e;
       const nextCount = e.sets.length + 1;
@@ -620,254 +296,34 @@ export default function WorkoutScreen() {
     }));
   };
 
-  const handleSelectRoutine = (routine: Routine) => {
-    router.setParams({ id: routine.id });
-  };
-
-  const handleClearSelection = () => {
-    router.setParams({ id: undefined });
-  };
-
-  // ============================================================
-  // Render: No active workout, no routine selected → routine list
-  // ============================================================
-  if (!activeWorkout && !selectedRoutineId) {
-    return (
-      <ScrollView
-        style={{ flex: 1, backgroundColor: t.bg }}
-        contentContainerStyle={{ padding: Space.lg, paddingTop: Space['4xl'], paddingBottom: 120 }}
-      >
-        <Text
-          style={{
-            color: t.textSecondary,
-            fontSize: Size.xs,
-            letterSpacing: 1.5,
-            textTransform: 'uppercase',
-            fontWeight: '700',
-            marginBottom: Space.sm,
-          }}
-        >
-          Your routines
-        </Text>
-        <Text style={{ color: t.text, fontSize: Size['3xl'], fontWeight: '800', letterSpacing: -0.5 }}>
-          Pick a routine
-        </Text>
-        <Text
-          style={{
-            color: t.textSecondary,
-            fontSize: Size.md,
-            lineHeight: 22,
-            marginTop: Space.sm,
-            marginBottom: Space.lg,
-          }}
-        >
-          Each routine builds itself from the workouts you log under it. Pick one to see its last session and start again.
-        </Text>
-
-        {routinesLoading && routines.length === 0 ? (
-          <Card style={{ alignItems: 'center', gap: Space.sm }}>
-            <ActivityIndicator color={t.primary} />
-            <Text style={{ color: t.textSecondary, fontSize: Size.sm }}>Loading your routines…</Text>
-          </Card>
-        ) : routinesError ? (
-          <Card style={{ gap: Space.sm }}>
-            <Text style={{ color: t.warning, fontSize: Size.sm, fontWeight: '800' }}>
-              Could not load routines
-            </Text>
-            <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>{routinesError}</Text>
-            <Button title="Retry" variant="secondary" onPress={() => void refreshRoutines()} />
-          </Card>
-        ) : routines.length === 0 ? (
-          <Card style={{ gap: Space.md }}>
-            <Text style={{ color: t.text, fontSize: Size.lg, fontWeight: '800' }}>No routines yet</Text>
-            <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
-              Create your first routine to start tracking your workouts. Exercises and sets will be recorded once you start a workout.
-            </Text>
-            <Button title="Create your first routine" size="lg" onPress={() => router.push('/routines')} />
-          </Card>
-        ) : (
-          <View style={{ gap: Space.sm }}>
-            {routines.map((routine) => (
-              <Card key={routine.id} style={{ gap: Space.sm }}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
-                  <Pressable
-                    onPress={() => handleSelectRoutine(routine)}
-                    style={{ flex: 1, gap: 4 }}
-                  >
-                    <Text style={{ color: t.text, fontSize: Size.lg, fontWeight: '800' }}>{routine.name}</Text>
-                    {routine.goal ? (
-                      <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 18 }} numberOfLines={2}>
-                        {routine.goal}
-                      </Text>
-                    ) : null}
-                    <Text style={{ color: t.textMuted, fontSize: Size.xs, marginTop: 2 }}>
-                      {formatLastUsed(routine.lastUsedAt)}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => router.push(`/routines?id=${routine.id}`)}
-                    style={{
-                      paddingHorizontal: Space.md,
-                      paddingVertical: 8,
-                      borderRadius: Radius.full,
-                      backgroundColor: withAlpha(t.primary, 0.12),
-                    }}
-                  >
-                    <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '900' }}>Edit</Text>
-                  </Pressable>
-                </View>
-              </Card>
-            ))}
-
-            <Pressable
-              onPress={() => router.push('/routines')}
-              style={{
-                marginTop: Space.sm,
-                paddingVertical: Space.md,
-                borderRadius: Radius.lg,
-                backgroundColor: t.surface2,
-                borderWidth: 1,
-                borderColor: t.borderLight,
-                borderStyle: 'dashed',
-                alignItems: 'center',
-              }}
-            >
-              <Text style={{ color: t.primary, fontSize: Size.sm, fontWeight: '900' }}>+ New routine</Text>
-            </Pressable>
-          </View>
-        )}
-      </ScrollView>
-    );
-  }
-
-  // =====================================================================
-  // Render: Routine selected (no active workout) → routine preview + start
-  // =====================================================================
   if (!activeWorkout) {
-    // Edge case: routine id in URL but routine list still loading or routine deleted
-    if (routinesLoading && !selectedRoutine) {
-      return (
-        <View style={{ flex: 1, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={t.primary} />
-          <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: Space.sm }}>Loading routine…</Text>
-        </View>
-      );
-    }
-    if (!selectedRoutine) {
-      return (
-        <ScrollView
-          style={{ flex: 1, backgroundColor: t.bg }}
-          contentContainerStyle={{ padding: Space.lg, paddingTop: Space['4xl'], paddingBottom: 120 }}
-        >
-          <Card style={{ gap: Space.sm }}>
-            <Text style={{ color: t.text, fontSize: Size.lg, fontWeight: '800' }}>Routine not found</Text>
-            <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
-              This routine may have been deleted. Go back to your routine list.
-            </Text>
-            <Button title="Back to routines" onPress={handleClearSelection} />
-          </Card>
-        </ScrollView>
-      );
-    }
-
     return (
-      <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: Space.lg, paddingTop: Space['4xl'], paddingBottom: 120 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm, marginBottom: Space.sm }}>
-          <Pressable
-            onPress={handleClearSelection}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: t.surface2,
-            }}
-          >
-            <Text style={{ color: t.text, fontSize: Size.lg }}>‹</Text>
-          </Pressable>
-          <Text
-            style={{
-              color: t.textSecondary,
-              fontSize: Size.xs,
-              letterSpacing: 1.5,
-              textTransform: 'uppercase',
-              fontWeight: '700',
-            }}
-          >
-            Routine
+      <View style={{ flex: 1, backgroundColor: t.bg, padding: Space.lg, justifyContent: 'center' }}>
+        <Card style={{ gap: Space.md }}>
+          <Text style={{ color: t.textSecondary, fontSize: Size.xs, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '700' }}>
+            Workout
           </Text>
-        </View>
-        <Text style={{ color: t.text, fontSize: Size['3xl'], fontWeight: '800', letterSpacing: -0.5 }}>
-          {routineDisplayName}
-        </Text>
-        <Text style={{ color: t.textSecondary, fontSize: Size.md, lineHeight: 22, marginTop: Space.sm, marginBottom: Space.lg }}>
-          {routineGoal}
-        </Text>
-
-        <Card style={{ gap: Space.md, marginBottom: Space.lg }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.md }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: t.text, fontSize: Size.lg, fontWeight: '800' }}>Routine contents</Text>
-              {lastCompletedWorkout ? (
-                <Text style={{ color: t.textMuted, fontSize: Size.xs, marginTop: 3 }}>
-                  Last workout · {routineExercises.length} exercises · {routineSetCount} sets
-                </Text>
-              ) : null}
-            </View>
-            {routineLoading ? <ActivityIndicator color={t.primary} /> : null}
-          </View>
-
-          {!routineLoading && routineExercises.length === 0 ? (
-            <View style={{ padding: Space.md, borderRadius: Radius.lg, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.borderLight }}>
-              <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
-                No workout history yet. Start a workout with this routine and it will fill in automatically.
-              </Text>
-            </View>
+          <Text style={{ color: t.text, fontSize: Size['3xl'], fontWeight: '800', letterSpacing: -0.5 }}>
+            Start a new session
+          </Text>
+          <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
+            This creates a workout row first, then selected exercises and completed sets are saved to Supabase when you end the session.
+          </Text>
+          {formMessage || workoutError ? (
+            <Text style={{ color: t.error, fontSize: Size.sm, fontWeight: '700' }}>{formMessage ?? workoutError}</Text>
           ) : null}
-
-          {routineExercises.map((exercise) => (
-            <View key={exercise.id} style={{ padding: Space.md, borderRadius: Radius.lg, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.borderLight, gap: Space.xs }}>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
-                  <ExerciseThumbnail name={exercise.name} frameTick={routineFrameTick} size={52} theme={t} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{exercise.name}</Text>
-                    <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{exercise.equipmentName}</Text>
-                  </View>
-                </View>
-                <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '800' }}>{exercise.sets.length} sets</Text>
-              </View>
-              <Text style={{ color: t.textMuted, fontSize: Size.xs }}>
-                {exercise.sets.map((set, index) => `Set ${index + 1}: ${set.previous}`).join(' · ')}
-              </Text>
-            </View>
-          ))}
-
-          {routineError ? (
-            <Text style={{ color: t.warning, fontSize: Size.xs, fontWeight: '700' }}>
-              Could not load the last workout details: {routineError}
-            </Text>
-          ) : null}
+          <Button
+            title={workoutLoading ? 'Starting…' : 'Start new session'}
+            size="lg"
+            disabled={workoutLoading}
+            icon={workoutLoading ? <ActivityIndicator color={t.onPrimary} /> : undefined}
+            onPress={startNewSession}
+          />
         </Card>
-
-        {formMessage || workoutError ? (
-          <Text style={{ color: t.error, fontSize: Size.sm, fontWeight: '700', marginBottom: Space.md }}>{formMessage ?? workoutError}</Text>
-        ) : null}
-        <Button
-          title={workoutLoading ? 'Starting…' : 'Start workout with this routine'}
-          size="lg"
-          disabled={workoutLoading}
-          icon={workoutLoading ? <ActivityIndicator color={t.onPrimary} /> : undefined}
-          onPress={startRoutineSession}
-        />
-      </ScrollView>
+      </View>
     );
   }
 
-  // =====================================================================
-  // Render: Active workout in progress (unchanged from previous version)
-  // =====================================================================
   return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
       {/* Header */}
@@ -922,84 +378,12 @@ export default function WorkoutScreen() {
 
         {exercises.map((ex, exIdx) => (
           <Card key={ex.id} style={{ marginBottom: Space.md }}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: Space.sm, gap: Space.sm }}>
-              <Pressable
-                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: Space.md }}
-                onPress={() => ex.equipmentId && router.push(`/equipment/${ex.equipmentId}`)}
-                disabled={ex.equipmentId === null}
-              >
-                <ExerciseThumbnail name={ex.name} frameTick={activeFrameTick} size={52} theme={t} />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: t.primary, fontSize: Size.md, fontWeight: '800' }}>{ex.name}</Text>
-                  <Text style={{ color: t.textMuted, fontSize: 10, marginTop: 2 }}>{ex.equipmentName}</Text>
-                </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Space.sm }}>
+              <Pressable onPress={() => router.push(`/equipment/${ex.equipmentId}`)}>
+                <Text style={{ color: t.primary, fontSize: Size.md, fontWeight: '800' }}>{ex.name}</Text>
+                <Text style={{ color: t.textMuted, fontSize: 10, marginTop: 2 }}>{ex.equipmentName}</Text>
               </Pressable>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}>
-                {ex.notes ? (
-                  <Text style={{ color: t.textMuted, fontSize: Size.xs }}>{ex.notes}</Text>
-                ) : null}
-                <Pressable
-                  onPress={() => requestRemoveExercise(exIdx)}
-                  hitSlop={8}
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 14,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: t.surface2,
-                    borderWidth: 1,
-                    borderColor: t.borderLight,
-                  }}
-                >
-                  <Text style={{ color: t.textMuted, fontSize: Size.md, fontWeight: '700', lineHeight: Size.md + 2 }}>×</Text>
-                </Pressable>
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.sm, marginBottom: Space.sm }}>
-              <Text
-                style={{
-                  color: ex.lifecycle === 'active' ? t.success : ex.lifecycle === 'finished' ? t.textMuted : t.warning,
-                  fontSize: Size.xs,
-                  fontWeight: '800',
-                }}
-              >
-                {ex.lifecycle === 'active'
-                  ? 'Active · equipment reserved'
-                  : ex.lifecycle === 'finished'
-                    ? 'Finished · equipment released'
-                    : 'Planned · equipment not reserved'}
-              </Text>
-              {ex.lifecycle === 'planned' ? (
-                <Pressable
-                  onPress={() => void startExercise(exIdx)}
-                  disabled={exerciseSaving || endingInFlight || hasActiveExercise || ex.equipmentId === null}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 7,
-                    borderRadius: Radius.full,
-                    backgroundColor: withAlpha(t.primary, 0.14),
-                    opacity: exerciseSaving || endingInFlight || hasActiveExercise || ex.equipmentId === null ? 0.55 : 1,
-                  }}
-                >
-                  <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '900' }}>Start exercise</Text>
-                </Pressable>
-              ) : null}
-              {ex.lifecycle === 'active' ? (
-                <Pressable
-                  onPress={() => void finishExercise(exIdx)}
-                  disabled={exerciseSaving || endingInFlight}
-                  style={{
-                    paddingHorizontal: 12,
-                    paddingVertical: 7,
-                    borderRadius: Radius.full,
-                    backgroundColor: withAlpha(t.success, 0.14),
-                    opacity: exerciseSaving || endingInFlight ? 0.55 : 1,
-                  }}
-                >
-                  <Text style={{ color: t.success, fontSize: Size.xs, fontWeight: '900' }}>Finish exercise</Text>
-                </Pressable>
-              ) : null}
+              <Text style={{ color: t.textMuted, fontSize: Size.xs }}>{ex.notes ?? ''}</Text>
             </View>
             {/* Column headers */}
             <View style={{ flexDirection: 'row', paddingVertical: 4 }}>
@@ -1024,7 +408,6 @@ export default function WorkoutScreen() {
                     value={s.kg}
                     onChangeText={v => updateSet(exIdx, sIdx, { kg: v })}
                     onBlur={() => markTouched(ex.id, sIdx, 'kg')}
-                    editable={ex.lifecycle !== 'finished'}
                     keyboardType="numeric"
                     placeholder="—"
                     placeholderTextColor={t.textMuted}
@@ -1034,7 +417,6 @@ export default function WorkoutScreen() {
                     value={s.reps}
                     onChangeText={v => updateSet(exIdx, sIdx, { reps: v })}
                     onBlur={() => markTouched(ex.id, sIdx, 'reps')}
-                    editable={ex.lifecycle !== 'finished'}
                     keyboardType="numeric"
                     placeholder="—"
                     placeholderTextColor={t.textMuted}
@@ -1066,39 +448,62 @@ export default function WorkoutScreen() {
 
       <Modal transparent visible={showExercisePicker} animationType="slide" onRequestClose={() => setShowExercisePicker(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', justifyContent: 'flex-end' }}>
-          <View style={{ height: '82%', backgroundColor: t.bg, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Space.lg, gap: Space.md }}>
+          <View style={{ maxHeight: '82%', backgroundColor: t.bg, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Space.lg, gap: Space.md }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={{ color: t.text, fontSize: Size.xl, fontWeight: '800' }}>Add exercise</Text>
               <Pressable onPress={() => setShowExercisePicker(false)}>
                 <Text style={{ color: t.textMuted, fontSize: Size.xl }}>✕</Text>
               </Pressable>
             </View>
-            <View style={{ flex: 1 }}>
-              <ExerciseFilterPanel
-                mode="add"
-                virtualizedResults
-                exercises={catalogExercises}
-                filteredExercises={filteredExercises}
-                equipmentOptions={equipmentOptions}
-                muscleOptions={muscleOptions}
-                levelOptions={levelOptions}
-                loading={catalogLoading || equipmentLoading}
-                error={catalogError ?? equipmentError}
-                onRetry={() => {
-                  void refreshCatalog();
-                  void refreshEquipment();
-                }}
-                query={exerciseQuery}
-                onQueryChange={setExerciseQuery}
-                equipmentFilter={pickerEquipment}
-                onEquipmentFilterChange={setPickerEquipment}
-                muscleFilter={pickerMuscle}
-                onMuscleFilterChange={setPickerMuscle}
-                levelFilter={pickerLevel}
-                onLevelFilterChange={setPickerLevel}
-                onAddExercise={addSelectedExercise}
-              />
-            </View>
+            <TextInput
+              value={exerciseQuery}
+              onChangeText={setExerciseQuery}
+              placeholder="Search live exercises…"
+              placeholderTextColor={t.textMuted}
+              style={{ color: t.text, backgroundColor: t.surface2, borderRadius: Radius.full, paddingHorizontal: Space.lg, paddingVertical: 12, borderWidth: 1, borderColor: t.borderLight }}
+            />
+            {catalogError || equipmentError ? (
+              <Card style={{ borderColor: withAlpha(t.warning, 0.35), backgroundColor: withAlpha(t.warning, 0.08), gap: Space.xs }}>
+                <Text style={{ color: t.warning, fontSize: Size.sm, fontWeight: '800' }}>Live catalog warning</Text>
+                <Text style={{ color: t.textSecondary, fontSize: Size.xs }}>{catalogError ?? equipmentError}</Text>
+                <Button title="Retry" variant="secondary" onPress={() => { void refreshCatalog(); void refreshEquipment(); }} />
+              </Card>
+            ) : null}
+            {(catalogLoading && catalogExercises.length === 0) || equipmentLoading ? (
+              <View style={{ alignItems: 'center', paddingVertical: Space.lg }}>
+                <ActivityIndicator color={t.primary} />
+                <Text style={{ color: t.textMuted, fontSize: Size.xs, marginTop: Space.sm }}>Loading live catalog…</Text>
+              </View>
+            ) : (
+              <ScrollView contentContainerStyle={{ gap: Space.sm, paddingBottom: Space.lg }}>
+                {exerciseMatches.map(({ exercise, equipment: matchedEquipment }) => (
+                  <Pressable key={exercise.id} disabled={!matchedEquipment} onPress={() => addSelectedExercise(exercise, matchedEquipment)}>
+                    <Card style={{ gap: Space.xs, opacity: matchedEquipment ? 1 : 0.45 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{exercise.name}</Text>
+                          <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 3 }}>
+                            {[pretty(exercise.equipmentRequired ?? 'No equipment'), pretty(exercise.level ?? 'Any level'), pretty(exercise.category ?? 'Exercise')].join(' · ')}
+                          </Text>
+                        </View>
+                        <Text style={{ color: matchedEquipment ? t.primary : t.warning, fontSize: Size.xs, fontWeight: '800' }}>
+                          {matchedEquipment ? 'Add' : 'No equipment match'}
+                        </Text>
+                      </View>
+                      {matchedEquipment ? (
+                        <Text style={{ color: t.textMuted, fontSize: 10 }}>Equipment row: {matchedEquipment.name}</Text>
+                      ) : null}
+                    </Card>
+                  </Pressable>
+                ))}
+                {exerciseMatches.length === 0 ? (
+                  <Card style={{ alignItems: 'center', gap: Space.sm }}>
+                    <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>No exercises found</Text>
+                    <Text style={{ color: t.textMuted, fontSize: Size.xs, textAlign: 'center' }}>Try a broader search term.</Text>
+                  </Card>
+                ) : null}
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
@@ -1130,47 +535,6 @@ export default function WorkoutScreen() {
                   onPress={confirmEndSession}
                 />
                 <Button title="Keep going" variant="secondary" size="lg" disabled={endingInFlight} onPress={() => setShowEndModal(false)} />
-              </View>
-            </Card>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* Delete exercise confirmation */}
-      <Modal
-        transparent
-        visible={pendingDeleteIdx !== null}
-        animationType="fade"
-        onRequestClose={() => !deleting && setPendingDeleteIdx(null)}
-      >
-        <Pressable
-          onPress={() => !deleting && setPendingDeleteIdx(null)}
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', alignItems: 'center', justifyContent: 'center', padding: Space.lg }}
-        >
-          <Pressable onPress={(event) => event.stopPropagation()} style={{ width: '100%', maxWidth: 420 }}>
-            <Card style={{ gap: Space.md }}>
-              <Text style={{ color: t.text, fontSize: Size.xl, fontWeight: '800' }}>Remove exercise?</Text>
-              <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
-                {pendingDeleteIdx !== null && exercises[pendingDeleteIdx]
-                  ? `"${exercises[pendingDeleteIdx].name}" and all of its sets will be removed from this workout.`
-                  : 'This exercise will be removed.'}
-              </Text>
-              {deleteError ? (
-                <Text style={{ color: t.error, fontSize: Size.sm, fontWeight: '700' }}>{deleteError}</Text>
-              ) : null}
-              <View style={{ gap: Space.sm, marginTop: Space.sm }}>
-                <Button
-                  title={deleting ? 'Removing…' : 'Remove'}
-                  onPress={() => void confirmRemoveExercise()}
-                  disabled={deleting}
-                  variant="danger"
-                />
-                <Button
-                  title="Cancel"
-                  onPress={() => setPendingDeleteIdx(null)}
-                  disabled={deleting}
-                  variant="secondary"
-                />
               </View>
             </Card>
           </Pressable>

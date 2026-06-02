@@ -23,7 +23,7 @@ const fallbackData: LiveOccupancy = {
   location: 'East Gym',
   source: 'fallback',
   timestamp: null,
-  message: 'Live occupancy unavailable',
+  message: 'API connection failed',
 };
 
 export function useLiveOccupancy() {
@@ -72,15 +72,14 @@ export function useLiveOccupancy() {
       };
 
       if (normalizedPayload.source !== 'api' || typeof normalizedPayload.count !== 'number') {
-        const fallbackMessage = normalizedPayload.message ?? fallbackData.message ?? 'Live occupancy unavailable';
         setState({
           data: {
             ...fallbackData,
             location: normalizedPayload.location ?? fallbackData.location,
             timestamp: normalizedPayload.timestamp ?? null,
-            message: fallbackMessage,
+            message: normalizedPayload.message ?? fallbackData.message,
           },
-          error: fallbackMessage,
+          error: 'API connection failed',
           loading: false,
           refreshing: false,
         });

@@ -1,12 +1,14 @@
 name: Poll Gym Occupancy
 
 on:
+  schedule:
+    - cron: '7,37 * * * *'  # every 30 minutes at 7 and 37 past the hour
   workflow_dispatch: # can run manually from GitHub Actions tab
 
 jobs:
   poll:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@v4
 

@@ -101,6 +101,18 @@ export const EQUIPMENT_MAP_ZONES: EquipmentMapZoneDefinition[] = [
     ],
     matchers: { categories: ['machines'] },
   },
+  {
+    id: 'functional-area',
+    name: 'Functional Area',
+    floor: '2nd floor',
+    zoneNumber: 4,
+    color: '#9E63D2',
+    areas: [
+      { left: 75, top: 15, width: 27, height: 27 },
+      { left: 63, top: 78, width: 39, height: 21 },
+    ],
+    matchers: { names: ['yoga', 'plyometric', 'box'] },
+  },
 ];
 
 function normalize(value: string | null | undefined) {

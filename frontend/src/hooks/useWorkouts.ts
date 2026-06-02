@@ -10,8 +10,6 @@ export interface Workout {
   user_id: string;
   name: string;
   target_muscle: string[];
-  /** Routine this workout belongs to, or null for ad-hoc workouts. */
-  routine_id: string | null;
   /** ISO timestamp string when the workout was started. */
   started_at: string;
   /** ISO timestamp string when the workout ended, or null if still active. */
@@ -33,8 +31,6 @@ interface CreateWorkoutInput {
   name: string;
   /** Target muscle groups for the session, e.g. ['chest', 'triceps']. */
   target_muscle: string[];
-  /** Optional routine id this workout belongs to. */
-  routine_id?: string | null;
 }
 
 interface UseWorkoutsReturn {
@@ -61,14 +57,10 @@ interface WorkoutRow {
   user_id: string;
   name: string;
   target_muscle: string[] | null;
-  routine_id: string | null;
   started_at: string;
   ended_at: string | null;
   created_at: string;
 }
-
-const WORKOUT_SELECT_COLUMNS =
-  'id, user_id, name, target_muscle, routine_id, started_at, ended_at, created_at';
 
 /**
  * Compute workout duration in minutes from start/end timestamps.
@@ -89,21 +81,11 @@ function normalizeWorkoutRow(row: WorkoutRow): Workout {
     user_id: row.user_id,
     name: row.name,
     target_muscle: row.target_muscle ?? [],
-    routine_id: row.routine_id,
     started_at: row.started_at,
     ended_at: row.ended_at,
     duration_min: computeDurationMin(row.started_at, row.ended_at),
     created_at: row.created_at,
   };
-}
-
-async function incrementEquipmentCount(equipmentId: string | number) {
-  const { error } = await supabase.rpc('increment_equipment_count', {
-    equipment_id_input: Number(equipmentId),
-  });
-  if (error) {
-    throw new Error(error.message ?? 'Failed to release equipment');
-  }
 }
 
 /**
@@ -129,7 +111,7 @@ async function incrementEquipmentCount(equipmentId: string | number) {
  *     <View>
  *       <Button
  *         title="Start workout"
- *         onPress={() => createWorkout({ name: 'Leg day', target_muscle: ['quads'], routine_id: 'r1' })}
+ *         onPress={() => createWorkout({ name: 'Leg day', target_muscle: ['quads'] })}
  *       />
  *       {activeWorkout && (
  *         <Button title="End" onPress={() => endWorkout(activeWorkout.id)} />
@@ -167,7 +149,7 @@ export function useWorkouts(): UseWorkoutsReturn {
 
     const { data, error: fetchError } = await supabase
       .from('workouts')
-      .select(WORKOUT_SELECT_COLUMNS)
+      .select('id, user_id, name, target_muscle, started_at, ended_at, created_at')
       .eq('user_id', userData.user.id)
       .order('started_at', { ascending: false });
 
@@ -188,12 +170,12 @@ export function useWorkouts(): UseWorkoutsReturn {
    * Create and start a new workout session for the current user.
    * Sets started_at to now and prepends the new workout to local state.
    *
-   * @param input - Session name, target muscle groups, and optional routine_id.
+   * @param input - Session name and target muscle groups.
    * @returns The newly created Workout row.
    * @throws If the user is not authenticated or the insert fails.
    */
   const createWorkout = useCallback(
-    async ({ name, target_muscle, routine_id }: CreateWorkoutInput): Promise<Workout> => {
+    async ({ name, target_muscle }: CreateWorkoutInput): Promise<Workout> => {
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData.user) {
         throw new Error(userError?.message ?? 'Not authenticated');
@@ -205,10 +187,9 @@ export function useWorkouts(): UseWorkoutsReturn {
           user_id: userData.user.id,
           name,
           target_muscle,
-          routine_id: routine_id ?? null,
           started_at: new Date().toISOString(),
         })
-        .select(WORKOUT_SELECT_COLUMNS)
+        .select('id, user_id, name, target_muscle, started_at, ended_at, created_at')
         .single();
 
       if (insertError || !data) {
@@ -263,9 +244,6 @@ export function useWorkouts(): UseWorkoutsReturn {
         throw new Error(`Failed to end active exercise ${ex.id}: ${updateExError.message}`);
       }
 
-      if (ex.equipment_id) {
-        await incrementEquipmentCount(ex.equipment_id);
-      }
     }
 
     // Now end the workout itself
@@ -273,7 +251,7 @@ export function useWorkouts(): UseWorkoutsReturn {
       .from('workouts')
       .update({ ended_at: endedAt })
       .eq('id', workoutId)
-      .select(WORKOUT_SELECT_COLUMNS)
+      .select('id, user_id, name, target_muscle, started_at, ended_at, created_at')
       .single();
 
     if (updateError || !data) {
@@ -301,7 +279,7 @@ export function useWorkouts(): UseWorkoutsReturn {
   const getWorkout = useCallback(async (workoutId: string): Promise<Workout> => {
     const { data, error: fetchError } = await supabase
       .from('workouts')
-      .select(WORKOUT_SELECT_COLUMNS)
+      .select('id, user_id, name, target_muscle, started_at, ended_at, created_at')
       .eq('id', workoutId)
       .single();
 
