@@ -11,6 +11,8 @@ const mockPush = jest.fn();
 const mockSetParams = jest.fn();
 const mockReplace = jest.fn();
 const mockUseLocalSearchParams = jest.fn();
+const mockRefreshWorkouts = jest.fn(async () => undefined);
+const mockRefreshRoutines = jest.fn(async () => undefined);
 
 jest.mock('expo-router', () => ({
   router: {
@@ -18,6 +20,7 @@ jest.mock('expo-router', () => ({
     replace: (...args: unknown[]) => mockReplace(...args),
     setParams: (...args: unknown[]) => mockSetParams(...args),
   },
+  useFocusEffect: (effect: () => void) => effect(),
   useLocalSearchParams: () => mockUseLocalSearchParams(),
 }));
 
@@ -114,6 +117,8 @@ function setupMocks({
   mockPush.mockClear();
   mockSetParams.mockClear();
   mockReplace.mockClear();
+  mockRefreshWorkouts.mockClear();
+  mockRefreshRoutines.mockClear();
 
   mockUseEquipment.mockReturnValue({
     equipment: [
@@ -177,7 +182,7 @@ function setupMocks({
     activeWorkout: null,
     loading: false,
     error: null,
-    refresh: jest.fn(async () => undefined),
+    refresh: mockRefreshWorkouts,
     createWorkout,
     endWorkout: jest.fn(async () => { throw new Error('not used'); }),
     getWorkout: jest.fn(async () => { throw new Error('not used'); }),
@@ -203,7 +208,7 @@ function setupMocks({
     routines,
     loading: routinesLoading,
     error: routinesError,
-    refresh: jest.fn(async () => undefined),
+    refresh: mockRefreshRoutines,
     createRoutine: jest.fn(),
     updateRoutine: jest.fn(),
     deleteRoutine: jest.fn(),
@@ -224,6 +229,15 @@ describe('Workout screen — routine list (no routine selected)', () => {
     expect(screen.getByText('Pick a routine')).toBeTruthy();
     expect(screen.getByText('No routines yet')).toBeTruthy();
     expect(screen.getByText('Create your first routine')).toBeTruthy();
+  });
+
+  it('refreshes routines and workouts when the tab is focused', async () => {
+    setupMocks({ routines: [sampleRoutine] });
+
+    render(<WorkoutScreen />);
+
+    await waitFor(() => expect(mockRefreshRoutines).toHaveBeenCalled());
+    expect(mockRefreshWorkouts).toHaveBeenCalled();
   });
 
   it('navigates to the routine editor when create is pressed in the empty state', () => {

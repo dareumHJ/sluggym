@@ -19,11 +19,13 @@ export function getEquipmentMapStatus(
   loading: boolean,
   error: Error | string | null
 ): MapState {
-  if (error) {
+  const hasEquipment = Boolean(equipmentList && equipmentList.length > 0);
+
+  if (error && !hasEquipment) {
     return { statuses: {}, globalState: 'error' };
   }
 
-  if (loading) {
+  if (loading && !hasEquipment) {
     return { statuses: {}, globalState: 'loading' };
   }
 

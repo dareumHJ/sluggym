@@ -4,6 +4,7 @@ import { Radius, Size, Space, useTheme, withAlpha } from '../constants/theme';
 import { Button, Card, SectionLabel } from './primitives';
 import { EquipmentVisual } from './EquipmentVisual';
 import { useEquipmentMap } from '../hooks/useEquipmentMap';
+import { useNotifications } from '../contexts/NotificationContext';
 import { buildEquipmentMapZones, type FloorName, type EquipmentMapZoneSummary } from '../data/equipmentMap';
 
 const FLOORS: FloorName[] = ['1st floor', '2nd floor'];
@@ -35,6 +36,7 @@ function floorLegend(zones: EquipmentMapZoneSummary[]) {
 export function EquipmentAvailabilityMap() {
   const t = useTheme();
   const { equipment, statuses, globalState, refresh } = useEquipmentMap();
+  const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useNotifications();
   const [floor, setFloor] = useState<FloorName>('1st floor');
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
@@ -289,6 +291,8 @@ export function EquipmentAvailabilityMap() {
                     {selectedZone.equipment.map((item) => {
                       const status = statuses[item.id] ?? 'unknown';
                       const palette = statusPalette(status, selectedZone.color);
+                      const watching = isInWatchlist(item.id);
+                      const occupied = status === 'occupied' || (item.quantity ?? 0) === 0;
                       return (
                         <View key={item.id} style={{ padding: Space.md, borderRadius: Radius.lg, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.border }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
@@ -304,6 +308,25 @@ export function EquipmentAvailabilityMap() {
                           {item.description ? (
                             <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 8, lineHeight: 18 }}>{item.description}</Text>
                           ) : null}
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`${watching ? 'Disable' : 'Enable'} free notification for ${item.name}`}
+                            onPress={() => (watching ? removeFromWatchlist(item.id) : addToWatchlist(item.id))}
+                            style={{
+                              alignSelf: 'flex-start',
+                              marginTop: Space.sm,
+                              paddingHorizontal: Space.md,
+                              paddingVertical: 7,
+                              borderRadius: Radius.full,
+                              backgroundColor: watching ? t.primary : t.surface2,
+                              borderWidth: 1,
+                              borderColor: watching ? t.primary : t.borderLight,
+                            }}
+                          >
+                            <Text style={{ color: watching ? t.onPrimary : t.text, fontSize: Size.xs, fontWeight: '800' }}>
+                              {watching ? 'Notifying when free' : occupied ? 'Notify when free' : 'Notify if it becomes busy then free'}
+                            </Text>
+                          </Pressable>
                         </View>
                       );
                     })}

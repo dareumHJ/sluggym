@@ -66,6 +66,7 @@ function setupMocks(overrides: {
     signInWithGoogle: jest.fn(async () => undefined),
     signInWithEmail: jest.fn(async () => undefined),
     signUpWithEmail: jest.fn(async () => undefined),
+    updateProfile: jest.fn(async () => undefined),
     signOut: jest.fn(async () => undefined),
   } as ReturnType<typeof useAuth>);
 

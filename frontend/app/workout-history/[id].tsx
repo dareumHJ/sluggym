@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Space, Size, Radius, useTheme, withAlpha } from '../../src/constants/theme';
+import { Space, Size, Radius, useTheme, useTweaks, withAlpha } from '../../src/constants/theme';
 import { Button, Card, SectionLabel, StatTile } from '../../src/components/primitives';
+import { ExerciseThumbnail, useExerciseImageFrameTick } from '../../src/components/ExerciseThumbnail';
 import { useWorkouts, type Workout } from '../../src/hooks/useWorkouts';
 import { useExercises, type WorkoutExerciseWithSets } from '../../src/hooks/useExercises';
 
@@ -53,6 +54,7 @@ function getEquipmentLabel(exercise: WorkoutExerciseWithSets) {
 
 export default function WorkoutHistoryDetailScreen() {
   const t = useTheme();
+  const { tweaks } = useTweaks();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const workoutId = useMemo(() => {
     const value = params.id;
@@ -100,6 +102,7 @@ export default function WorkoutHistoryDetailScreen() {
     () => exercises.reduce((sum, exercise) => sum + exercise.sets.length, 0),
     [exercises],
   );
+  const exerciseFrameTick = useExerciseImageFrameTick(exercises.map((exercise) => getExerciseLabel(exercise)));
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ padding: Space.lg, paddingTop: Space['4xl'], paddingBottom: 120 }}>
@@ -156,9 +159,12 @@ export default function WorkoutHistoryDetailScreen() {
             {exercises.map((exercise, index) => (
               <Card key={exercise.id} style={{ gap: Space.sm }}>
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{getExerciseLabel(exercise)}</Text>
-                    <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{getEquipmentLabel(exercise)}</Text>
+                  <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
+                    <ExerciseThumbnail name={getExerciseLabel(exercise)} frameTick={exerciseFrameTick} size={52} theme={t} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{getExerciseLabel(exercise)}</Text>
+                      <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{getEquipmentLabel(exercise)}</Text>
+                    </View>
                   </View>
                   <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.full, backgroundColor: withAlpha(t.primary, 0.15) }}>
                     <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '800' }}>#{index + 1}</Text>
@@ -175,7 +181,9 @@ export default function WorkoutHistoryDetailScreen() {
                       <View key={set.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Space.md, borderRadius: Radius.md, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.border }}>
                         <View>
                           <Text style={{ color: t.text, fontSize: Size.sm, fontWeight: '700' }}>Set {set.set_number}</Text>
-                          <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{set.weight} kg × {set.reps} reps</Text>
+                          <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>
+                            {formatWeight(set.weight, tweaks.units)} x {set.reps} reps
+                          </Text>
                         </View>
                         <Text style={{ color: set.is_completed ? t.success : t.warning, fontSize: Size.xs, fontWeight: '800' }}>
                           {set.is_completed ? 'Completed' : 'Pending'}
@@ -191,4 +199,11 @@ export default function WorkoutHistoryDetailScreen() {
       ) : null}
     </ScrollView>
   );
+}
+
+function formatWeight(weightKg: number | string | null | undefined, unit: 'kg' | 'lb') {
+  const kg = typeof weightKg === 'string' ? Number(weightKg) : weightKg;
+  if (!Number.isFinite(kg)) return `0 ${unit}`;
+  if (unit === 'kg') return `${kg} kg`;
+  return `${Math.round((kg as number) * 2.20462 * 10) / 10} lb`;
 }
