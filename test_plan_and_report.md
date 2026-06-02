@@ -1,6 +1,8 @@
-# SlugGym System Test Plan & Verification Report
+# Test Plan and Report
 
-This document outlines the system-level test scenarios designed to verify that all user stories (US) and their associated acceptance criteria have been successfully implemented on the `dev` branch.
+**Product Name**: SlugGym  
+**Team Name**: Strong Slugs  
+**Date**: [Date Placeholder]  
 
 ---
 
@@ -9,7 +11,7 @@ This document outlines the system-level test scenarios designed to verify that a
 | User Story ID | Title | User Story | Covered in Scenario |
 | :--- | :--- | :--- | :--- |
 | **US-1.1** (SLU-41) | Equipment Catalog | As a gym-goer, I want to browse a documented list of all machines available in the gym so that I can plan my workout before arriving. | Scenario 2 |
-| **US-1.2** (SLU-39) | Gym Headcount Display | As a gym-goer, I want to see the total number of people currently in the gym so that I can decide whether it is worth going. | Scenario 2 |
+| **US-1.2** (SLU-39) | Gym Headcount Display | As a gym-goer, I want to see the total number of people currently in the gym so that I can decide whether it is worth going. | Scenario 2, Scenario 7 |
 | **US-1.3** (SLU-33) | Account Creation & Login/Logout | As a gym-goer, I want to create an account / log in and out so that I can keep track of my personal workout records. | Scenario 1 |
 | **US-2.1** (SLU-68) | Equipment Availability List | As a gym-goer, I want to view which gym machines are currently occupied so that I can plan my session before arriving. | Scenario 2, Scenario 4 |
 | **US-2.2** (SLU-82) | Workout Session Logging | As a gym-goer, I want to create a workout session and add exercises (equip., weight, sets, reps) so that I can track what I did at the gym. | Scenario 4 |
@@ -19,7 +21,7 @@ This document outlines the system-level test scenarios designed to verify that a
 | **US-3.2** (SLU-129) | Past Workout History | As a gym-goer, I want to view my past workout logs so that I can track my consistency over time. | Scenario 5 |
 | **US-3.3** (SLU-130) | Weekly Congestion Heatmap | As a gym-goer, I want to see a weekly congestion heatmap for each equipment type so that I can identify historically quieter time slots. | Scenario 2 |
 | **US-4.1** (SLU-157) | Routine Saving | As a gym-goer, I want to save my regular workout routine so that the app can use it to make personalized recommendations. | Scenario 3, Scenario 4 |
-| **US-4.2** (SLU-158) | Optimal Time Recommendation | As a gym-goer, I want to receive a suggested time to visit the gym based on my routine and historical data so that I can avoid waiting for equipment. | Scenario 3, Scenario 5 |
+| **US-4.2** (SLU-158) | Optimal Time Recommendation | As a gym-goer, I want to receive a suggested time to visit the gym based on my routine and historical data so that I can avoid waiting for equipment. | Scenario 3, Scenario 6 |
 | **US-4.3** (SLU-159) | Equipment Availability Alerts | As a gym-goer, I want to receive a push notification when a busy equipment type becomes free so that I can act on it in real time. | Scenario 5 |
 | **US-4.4** (SLU-160) | Bug Fixes & Polish | As a user, I want the app to be stable and easy to navigate so that I can focus on my workout. | Section 3 (Verification) |
 
@@ -55,9 +57,9 @@ This document outlines the system-level test scenarios designed to verify that a
 3. **Action**: Navigate to the **Search** tab. Select **Equipment** mode and search for `Bench`.
    * **Expected Output**: A list of matched equipment appears (e.g., "Bench Press", "Incline Bench") showing their categories (e.g., "Free Weights") and live availability status (e.g., `2 available`).
 4. **Action**: Navigate to the **Map** tab.
-   * **Expected Output**: A full-screen visual map layout loads. Zones are color-coded (green for low occupancy, orange for moderate, red for busy). A legend is visible at the top.
-5. **Action**: Tap the **Free Weights** zone on the map.
-   * **Expected Output**: A popup/bottom sheet sweeps up, displaying the list of all physical equipment assigned to that zone (e.g., "Bench Press - 2 available", "Power Rack - 0 available").
+   * **Expected Output**: A full-screen visual map layout loads. Zones are colored by zone identifier, with a list legend at the bottom displaying live availability status and occupancy levels for each zone (e.g., 'Open' or 'Busy').
+5. **Action**: Tap the **Bench Zone** (Zone 2) on the map.
+   * **Expected Output**: A popup/bottom sheet sweeps up, displaying the list of all physical equipment assigned to that zone (e.g., showing 'Bench Press' or other machines as available/occupied).
 
 ---
 
@@ -97,22 +99,63 @@ This document outlines the system-level test scenarios designed to verify that a
 
 ---
 
-### Scenario 5: History Review, Recommendations, & Alerts (Pass/Fail)
-* **Goal**: Verify completed workouts appear in history, that the optimal time algorithm scores the routine using the 3-tier fallback, and that in-app occupancy alerts function correctly.
-* **Target User Stories**: **US-3.2** (SLU-129), **US-4.1** (SLU-157), **US-4.2** (SLU-158), **US-4.3** (SLU-159)
-* **Pre-conditions**: User has logged at least one workout under the `Chest Day` routine containing a claimed equipment item.
+### Scenario 5: History Review & In-App Alerts (Pass/Fail)
+* **Goal**: Verify completed workouts appear in history and that in-app occupancy alerts function correctly.
+* **Target User Stories**: **US-3.2** (SLU-129), **US-4.3** (SLU-159)
+* **Pre-conditions**: 
+  1. Two users participate in the test: **User A** and **User B**, logged into the app on separate devices (or client sessions).
+  2. The gym database includes an equipment type with a total count of 1 (e.g. `Assisted Pull-up Machine`).
+  3. **User B** has logged at least one workout under the `Chest Day` routine to enable history verification.
 
 #### Steps & Verification:
-1. **Action**: Navigate to the **Stats** (or History) tab. Tap the most recent workout in the log.
+1. **Action**: **User B** navigates to the **Stats** (or History) tab and taps the most recent workout in the log.
    * **Expected Output**: The detail screen loads, displaying the date, duration, total exercises, total sets, and showing `Barbell Bench Press` with sets: `80 kg x 8 reps` and `80 kg x 6 reps` marked as completed.
-2. **Action**: Navigate to the **Home** tab and view the **Optimal Time Recommendation** card.
-   * **Expected Output**: The card now displays a suggestion: `Best for Chest Day` followed by a day and time (e.g., `Wed 9:00 AM–12:00 PM`) and a confidence percentage (e.g. `72% confidence`). The card lists the reason: *"Based on your equipment availability history"* (or headcount/baseline fallbacks if data is sparse).
-3. **Action**: Go to the **Workout** tab, select `Chest Day`, and review the routine preview screen.
+2. **Action**: **User B** goes to the **Workout** tab, selects `Chest Day`, and reviews the routine preview screen.
    * **Expected Output**: Instead of the empty banner, the routine preview now displays the bootstrapped exercises and sets from the last completed session (`Barbell Bench Press - 2 sets`).
-4. **Action**: Opt in for alerts: Navigate to the **Search** tab. Select **Equipment** mode and search for `Power Rack` (currently busy, 0 available). Tap **Notify when free**.
-   * **Expected Output**: The button changes to `✓ Notifying when free` and the app registers the alert callback.
-5. **Action**: Simulate/Trigger availability update: Another user logs out or releases the `Power Rack` (setting available count > 0).
-   * **Expected Output**: An in-app toast notification is displayed at the top showing `NOW AVAILABLE` and the equipment name `Power Rack`. Tapping the toast dismisses it and removes `Power Rack` from the watchlist.
+3. **Action**: **User A** starts a workout session, adds `Assisted Pull-up Machine` to their active workout, and claim-selects it.
+   * **Expected Output**: **User A**'s active workout page shows the exercise. The live availability counter for `Assisted Pull-up Machine` in the database drops from `1` to `0` (occupied).
+4. **Action**: **User B** navigates to the **Search** tab, selects **Equipment** mode, searches for `Assisted Pull-up Machine` (showing 0 available), and taps **Notify when free**.
+   * **Expected Output**: The button text changes to `✓ Notifying when free` and **User B**'s in-memory watchlist registers the subscription.
+5. **Action**: **User A** completes/ends the exercise (or ends the workout session) to release the machine.
+   * **Expected Output**: The live availability counter for `Assisted Pull-up Machine` in the database increments from `0` to `1` (available).
+6. **Action**: **User B** checks their screen.
+   * **Expected Output**: An in-app toast notification is displayed immediately at the top of **User B**'s screen showing `NOW AVAILABLE` and the equipment name `Assisted Pull-up Machine`. Tapping the toast dismisses it and removes the machine from **User B**'s watchlist.
+
+---
+
+### Scenario 6: Routine-Specific Optimal Visit-Time Recommendations (Pass/Fail)
+* **Goal**: Verify that when multiple users occupy a single-capacity machine inside a specific 3-hour time block, the historical availability scoring shifts the optimal time recommendation for that routine to a different slot.
+* **Target User Stories**: **US-4.2** (SLU-158)
+* **Pre-conditions**:
+  1. Two users participate in the test: **User A** and **User B**, logged into the app.
+  2. The gym database includes an equipment type with a total count of 1 (e.g., `Assisted Pull-up Machine`).
+  3. Both users have a routine (e.g., `Pull Day`) requiring `Assisted Pull-up Machine`.
+  4. The current baseline optimal visit recommendation for `Pull Day` is Wednesday 6:00 PM–9:00 PM.
+
+#### Steps & Verification:
+1. **Action**: **User A** and **User B** both complete workouts containing `Assisted Pull-up Machine` on successive Wednesdays during the 6:00 PM–9:00 PM block (serially).
+   * **Expected Output**: The system records snapshots of availability. The database contains entries in `equipment_availability_history` for `Assisted Pull-up Machine` with `available_count = 0` during this block.
+2. **Action**: **User B** navigates to the **Home** tab and views the **Optimal Time Recommendation** card for the `Pull Day` routine.
+   * **Expected Output**: The scoring engine calculates the scores. Since the critical bottleneck equipment (`Assisted Pull-up Machine`) was occupied, the scoring algorithm applies the bottleneck penalty.
+3. **Action**: Verify the recommended time block and details.
+   * **Expected Output**: The recommended visit time for the `Pull Day` routine shifts to a quieter block (e.g. Thursday 9:00 AM–12:00 PM) showing a higher confidence percentage, with warning copy visible on the recommendation card noting that `Assisted Pull-up Machine` has low historical availability on Wednesday evenings.
+
+---
+
+### Scenario 7: Live Overall "Right Now" Headcount Recommendations (Pass/Fail)
+* **Goal**: Verify that overall gym headcount updates dynamically modify the "right now" occupancy status card and recommendation on the Home tab.
+* **Target User Stories**: **US-1.2** (SLU-39)
+* **Pre-conditions**:
+  1. **User A** and **User B** are logged into the app on separate devices.
+  2. The gym capacity is set to 150. Current headcount is low (e.g., 10/150).
+
+#### Steps & Verification:
+1. **Action**: **User A** views the **Home** tab.
+   * **Expected Output**: The **Live Headcount** card displays `10/150 people here now` with a green progress bar and status *"Right now: Quiet"*. The overall visit recommendation is positive: *"Great time to visit!"*.
+2. **Action**: Simulate a high crowd influx (multiple users check-in, updating the database headcount to `135/150`).
+   * **Expected Output**: The live headcount value updates in the backend.
+3. **Action**: **User B** (and **User A**) views their **Home** tab.
+   * **Expected Output**: The progress bar changes to red, the text updates in real-time to `135/150 people here now`, and the overall occupancy status updates to *"Right now: Very Busy"* with a warning recommendation: *"Expect wait times for popular equipment."*.
 
 ---
 
