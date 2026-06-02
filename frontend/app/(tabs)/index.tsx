@@ -43,7 +43,7 @@ export default function HomeScreen() {
   const occupancyCapacity = 150;
   const popularTimesData = headcountHistory.empty ? HOURLY : headcountHistory.popularTimes;
   const busiestHour = busiestHourlyWindow(headcountHistory.buckets);
-  const { data: congestionData, loading: congestionLoading, error: congestionError, refresh: refreshCongestion } = useWeeklyCongestion('UCSC Gym');
+  const { data: congestionData, loading: congestionLoading, error: congestionError, refresh: refreshCongestion } = useWeeklyCongestion('405 E Field Service Rd, Santa Cruz, CA 95064 미국');
 
   return (
       <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ paddingBottom: 120 }}>

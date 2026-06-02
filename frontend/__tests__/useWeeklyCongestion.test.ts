@@ -47,7 +47,7 @@ describe('useWeeklyCongestion hook', () => {
       return { select: jest.fn().mockReturnThis() };
     });
 
-    const { result } = renderHook(() => useWeeklyCongestion('UCSC Gym'));
+    const { result } = renderHook(() => useWeeklyCongestion('405 E Field Service Rd, Santa Cruz, CA 95064 미국'));
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -95,7 +95,7 @@ describe('useWeeklyCongestion hook', () => {
       return { select: jest.fn().mockReturnThis() };
     });
 
-    const { result } = renderHook(() => useWeeklyCongestion('UCSC Gym'));
+    const { result } = renderHook(() => useWeeklyCongestion('405 E Field Service Rd, Santa Cruz, CA 95064 미국'));
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -122,7 +122,7 @@ describe('useWeeklyCongestion hook', () => {
       return { select: jest.fn().mockReturnThis() };
     });
 
-    const { result } = renderHook(() => useWeeklyCongestion('UCSC Gym'));
+    const { result } = renderHook(() => useWeeklyCongestion('405 E Field Service Rd, Santa Cruz, CA 95064 미국'));
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
