@@ -114,7 +114,8 @@ This section maps the overlying user stories completed in this release to their 
 Below is a summary of major omissions, design shortcuts, and fallback behaviors currently residing in the codebase:
 
 ### Omissions & Missing Features
-* *None.* All sprint user stories are fully implemented.
+1. **Removal of General "Go Now" Recommendation**:
+   * The overall "Right Now, whether to go" recommendation card was removed from the Home screen. The Home tab now focuses entirely on displaying the live headcount occupancy status (`Open`, `Moderate`, `Busy` based on a `150` capacity limit), leaving the personalized routine-specific suggestions as the primary recommendation engine.
 
 ### Design Shortcuts & Hardcoded Fallbacks
 1. **Catalog Row Limits**:
@@ -125,8 +126,8 @@ Below is a summary of major omissions, design shortcuts, and fallback behaviors 
    * If there is no historical occupancy data recorded in the database, the heatmap and Popular Times graph fall back to static mock arrays (`HOURLY` and `WEEKLY_CONGESTION` in `mock.ts`).
 4. **Scoring Fallback (IHRSA Baseline)**:
    * The third tier of the routine recommendation scoring engine relies on a hardcoded list of typical commercial gym traffic coefficients (`IHRSA_BASELINE_AVAILABILITY` inside `routineRecommendations.ts`), which may not accurately reflect the actual patterns of specific local facilities.
-5. **Timezone Assumptions**:
-   * The timezone formatter in `recommendation.ts` assumes `America/Los_Angeles` when parsing dates to PDT/PST blocks. Running the app in other timezones could distort recommendations unless normalized.
+5. **Timezone Normalization**:
+   * The hourly headcount history aggregator, the weekly congestion heatmap, and the optimal recommendation scoring engine all normalize date-parsing using the `America/Los_Angeles` timezone (the local time of UC Santa Cruz gyms) to ensure consistent binned results regardless of the user's local device/emulator timezone settings.
 
 ---
 

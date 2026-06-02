@@ -123,7 +123,7 @@
 
 ---
 
-### Scenario 6: Routine-Specific Optimal Visit-Time Recommendations (Pass/Fail)
+### Scenario 6: Routine-Specific Optimal Visit-Time Recommendations (Tier 1: Equipment History) (Pass/Fail)
 * **Goal**: Verify that when multiple users occupy a single-capacity machine inside a specific 3-hour time block, the historical availability scoring shifts the optimal time recommendation for that routine to a different slot.
 * **Target User Stories**: **US-4.2** (SLU-158)
 * **Pre-conditions**:
@@ -135,15 +135,15 @@
 #### Steps & Verification:
 1. **Action**: **User A** and **User B** both complete workouts containing `Assisted Pull-up Machine` on successive Wednesdays during the 6:00 PM–9:00 PM block (serially).
    * **Expected Output**: The system records snapshots of availability. The database contains entries in `equipment_availability_history` for `Assisted Pull-up Machine` with `available_count = 0` during this block.
-2. **Action**: **User B** navigates to the **Home** tab and views the **Optimal Time Recommendation** card for the `Pull Day` routine.
+2. **Action**: **User B** navigates to the **Home** tab and views the **Best Time to Go** recommendation card.
    * **Expected Output**: The scoring engine calculates the scores. Since the critical bottleneck equipment (`Assisted Pull-up Machine`) was occupied, the scoring algorithm applies the bottleneck penalty.
 3. **Action**: Verify the recommended time block and details.
-   * **Expected Output**: The recommended visit time for the `Pull Day` routine shifts to a quieter block (e.g. Thursday 9:00 AM–12:00 PM) showing a higher confidence percentage, with warning copy visible on the recommendation card noting that `Assisted Pull-up Machine` has low historical availability on Wednesday evenings.
+   * **Expected Output**: The recommended visit time for the `Pull Day` routine shifts to a quieter block (e.g., Thursday 9:00 AM–12:00 PM) showing a higher confidence percentage, and the card displays the reason text: `"Based on your equipment availability history. Watch out for Assisted Pull-up Machine."` (matching the Tier 1 indicator).
 
 ---
 
-### Scenario 7: Live Overall "Right Now" Headcount Recommendations (Pass/Fail)
-* **Goal**: Verify that overall gym headcount updates dynamically modify the "right now" occupancy status card and recommendation on the Home tab.
+### Scenario 7: Live Overall "Right Now" Headcount Status Transitions (Pass/Fail)
+* **Goal**: Verify that overall gym headcount updates dynamically modify the occupancy status and bar color on the Home tab.
 * **Target User Stories**: **US-1.2** (SLU-39)
 * **Pre-conditions**:
   1. **User A** and **User B** are logged into the app on separate devices.
@@ -151,11 +151,44 @@
 
 #### Steps & Verification:
 1. **Action**: **User A** views the **Home** tab.
-   * **Expected Output**: The **Live Headcount** card displays `10/150 people here now` with a green progress bar and status *"Right now: Quiet"*. The overall visit recommendation is positive: *"Great time to visit!"*.
-2. **Action**: Simulate a high crowd influx (multiple users check-in, updating the database headcount to `135/150`).
+   * **Expected Output**: The **Live Headcount** card displays `10/150 people here now` with the progress bar filled to 6% and status text `"Open"`.
+2. **Action**: Simulate a moderate crowd influx (updating the database headcount to `95/150`, i.e., 63% capacity).
    * **Expected Output**: The live headcount value updates in the backend.
-3. **Action**: **User B** (and **User A**) views their **Home** tab.
-   * **Expected Output**: The progress bar changes to red, the text updates in real-time to `135/150 people here now`, and the overall occupancy status updates to *"Right now: Very Busy"* with a warning recommendation: *"Expect wait times for popular equipment."*.
+3. **Action**: **User B** views their **Home** tab.
+   * **Expected Output**: The progress bar updates to 63% fill, the count text updates to `95/150 people here now`, and the occupancy status updates to `"Moderate"`.
+4. **Action**: Simulate a high crowd influx (updating the database headcount to `135/150`, i.e., 90% capacity).
+   * **Expected Output**: The live headcount updates.
+5. **Action**: **User A** views their **Home** tab.
+   * **Expected Output**: The progress bar updates to 90% fill, the count text updates to `135/150 people here now`, and the occupancy status updates to `"Busy"`.
+
+---
+
+### Scenario 8: Routine-Specific Recommendations (Tier 2 Fallback: General Gym Headcount) (Pass/Fail)
+* **Goal**: Verify that when specific equipment availability records are sparse/missing, the recommendation engine falls back to general gym headcount history.
+* **Target User Stories**: **US-4.2** (SLU-158)
+* **Pre-conditions**:
+  1. A logged-in user has a routine `Chest Day` requiring `Dumbbells`.
+  2. The database has **no** historical entries in `equipment_availability_history` for `Dumbbells`.
+  3. The database **does** contain headcount history records in `gym_headcount_history` (e.g., indicating low occupancy on Monday mornings and high occupancy on Wednesday evenings).
+
+#### Steps & Verification:
+1. **Action**: User views the **Home** tab.
+   * **Expected Output**: The optimal recommendation card displays the best time based on general gym occupancy (e.g., `"Mon 9:00 AM–12:00 PM"`).
+   * **Expected Output**: The reason text displays: `"Equipment data limited — using gym headcount history. Watch out for Dumbbells (Estimated)."` (Since the specific equipment data is missing, it falls back to headcount history and appends `(Estimated)` to the bottleneck equipment).
+
+---
+
+### Scenario 9: Routine-Specific Recommendations (Tier 3 Fallback: Commercial Gym Baseline) (Pass/Fail)
+* **Goal**: Verify that when both specific equipment availability logs and general gym headcount logs are missing, the recommendation engine falls back to the hardcoded commercial gym profile.
+* **Target User Stories**: **US-4.2** (SLU-158)
+* **Pre-conditions**:
+  1. A logged-in user has a routine `Leg Day` requiring `Squat Rack`.
+  2. The database has **no** history logs in `equipment_availability_history` for `Squat Rack` and **no** logs in `gym_headcount_history` within the 30-day lookback window.
+
+#### Steps & Verification:
+1. **Action**: User views the **Home** tab.
+   * **Expected Output**: The optimal recommendation card displays the best time based on the hardcoded IHRSA baseline profile. It recommends a high-availability slot (e.g., `"Mon 6:00 AM–9:00 AM"` or `"Mon 9:00 PM–12:00 AM"`).
+   * **Expected Output**: The reason text displays: `"Using industry baseline while live data accumulates. Watch out for Squat Rack (Standard Profile)."` (Since both tables are empty, it falls back to the baseline profile and appends `(Standard Profile)` to the bottleneck equipment).
 
 ---
 
@@ -166,8 +199,8 @@ An automated test suite exists in `frontend/__tests__` and has been run successf
 ### Automated Test Execution
 * **Command**: `cd frontend && npm test -- --runInBand --timeout=15000`
 * **Result**: **PASS** (100%)
-* **Suites**: 27 passed, 27 total
-* **Tests**: 149 passed, 149 total
+* **Suites**: 28 passed, 28 total
+* **Tests**: 157 passed, 157 total
 
 ### Typechecking & Linting
 * **Typecheck Command**: `npx tsc --noEmit` (Successfully verified code types)
