@@ -28,8 +28,8 @@ describe('OptimalTimeRecommendation', () => {
   it('renders the provided recommendations as the top pick', () => {
     render(<OptimalTimeRecommendation recommendations={sampleRecommendations} />);
 
-    expect(screen.getByText('Optimal Time Recommendation')).toBeTruthy();
-    expect(screen.getByText('Best for Push day')).toBeTruthy();
+    expect(screen.getByText('Best Time to Go')).toBeTruthy();
+    expect(screen.getAllByText('Best for Push day').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Wed 9:00 AM–12:00 PM').length).toBeGreaterThan(0);
     expect(screen.getByText('82%')).toBeTruthy();
     expect(screen.getByText('Low crowd')).toBeTruthy();

@@ -48,8 +48,14 @@ export function OptimalTimeRecommendation({
           ) : undefined
         }
       >
-        Optimal Time Recommendation
+        Best Time to Go
       </SectionLabel>
+
+      {/* Subtitle directly under the section label. Keeps the card body focused
+          on the recommendation itself and tells the user what this card is for. */}
+      <Text style={{ color: t.textMuted, fontSize: Size.xs, marginTop: -4 }}>
+        Plan your week ahead — your routines ranked by equipment availability over the past 30 days
+      </Text>
 
       <Card style={{ gap: Space.md }}>
         {loading ? (
@@ -130,6 +136,20 @@ export function OptimalTimeRecommendation({
                       gap: Space.xs,
                     }}
                   >
+                    {/* Routine label — small caps at the top so the user can tell
+                        which routine this chip belongs to. */}
+                    <Text
+                      style={{
+                        color: active ? t.primary : t.textSecondary,
+                        fontSize: 10,
+                        fontWeight: '800',
+                        letterSpacing: 0.8,
+                        textTransform: 'uppercase',
+                      }}
+                      numberOfLines={1}
+                    >
+                      {item.label}
+                    </Text>
                     <Text
                       style={{
                         color: active ? t.primary : t.text,
