@@ -23,7 +23,7 @@ def main():
 
     # fetch occupancy data from our backend
     try:
-        response = httpx.get(OCCUPANCY_URL, timeout=10)
+        response = httpx.get(OCCUPANCY_URL, timeout=120)
         response.raise_for_status()
         data = response.json()
     except Exception as e:

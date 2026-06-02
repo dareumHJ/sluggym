@@ -14,6 +14,7 @@ type Ctx = {
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, name?: string) => Promise<void>;
+  updateProfile: (name: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -196,6 +197,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const updateProfile = useCallback(async (name: string) => {
+    const cleanName = name.trim();
+    if (!cleanName) {
+      throw new Error('Enter a display name.');
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      data: { name: cleanName, full_name: cleanName },
+    });
+    if (error) throw error;
+
+    const { data } = await supabase.auth.getSession();
+    setSession(data.session ?? null);
+  }, []);
+
   const value = useMemo<Ctx>(
     () => ({
       user: mapSession(session),
@@ -203,12 +219,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogle,
       signInWithEmail,
       signUpWithEmail,
+      updateProfile,
       signOut: async () => {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
       },
     }),
-    [loading, session, signInWithGoogle, signInWithEmail, signUpWithEmail],
+    [loading, session, signInWithGoogle, signInWithEmail, signUpWithEmail, updateProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

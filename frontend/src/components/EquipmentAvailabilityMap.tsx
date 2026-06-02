@@ -1,11 +1,15 @@
-import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Modal, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 import { Radius, Size, Space, useTheme, withAlpha } from '../constants/theme';
 import { Button, Card, SectionLabel } from './primitives';
+import { EquipmentVisual } from './EquipmentVisual';
 import { useEquipmentMap } from '../hooks/useEquipmentMap';
+import { useNotifications } from '../contexts/NotificationContext';
 import { buildEquipmentMapZones, type FloorName, type EquipmentMapZoneSummary } from '../data/equipmentMap';
 
 const FLOORS: FloorName[] = ['1st floor', '2nd floor'];
+const SHEET_DISMISS_DISTANCE = 120;
+const SHEET_OFFSCREEN_Y = 720;
 
 function statusPalette(status: EquipmentMapZoneSummary['status'], color: string) {
   if (status === 'free') {
@@ -32,8 +36,10 @@ function floorLegend(zones: EquipmentMapZoneSummary[]) {
 export function EquipmentAvailabilityMap() {
   const t = useTheme();
   const { equipment, statuses, globalState, refresh } = useEquipmentMap();
+  const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useNotifications();
   const [floor, setFloor] = useState<FloorName>('1st floor');
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
 
   const zones = useMemo(() => buildEquipmentMapZones(equipment, statuses), [equipment, statuses]);
   const floorZones = useMemo(() => zones.filter((zone) => zone.floor === floor), [floor, zones]);
@@ -41,6 +47,50 @@ export function EquipmentAvailabilityMap() {
     () => floorZones.find((zone) => zone.id === selectedZoneId) ?? null,
     [floorZones, selectedZoneId],
   );
+  const closeSelectedZone = useCallback(() => {
+    Animated.timing(sheetTranslateY, {
+      toValue: SHEET_OFFSCREEN_Y,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(() => {
+      setSelectedZoneId(null);
+      sheetTranslateY.setValue(0);
+    });
+  }, [sheetTranslateY]);
+  const sheetPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) =>
+          gesture.dy > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        onPanResponderMove: (_event, gesture) => {
+          if (gesture.dy > 0) sheetTranslateY.setValue(gesture.dy);
+        },
+        onPanResponderRelease: (_event, gesture) => {
+          if (gesture.dy > SHEET_DISMISS_DISTANCE || gesture.vy > 1.1) {
+            closeSelectedZone();
+            return;
+          }
+
+          Animated.spring(sheetTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 4,
+          }).start();
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(sheetTranslateY, {
+            toValue: 0,
+            useNativeDriver: true,
+            bounciness: 4,
+          }).start();
+        },
+      }),
+    [closeSelectedZone, sheetTranslateY],
+  );
+
+  useEffect(() => {
+    if (selectedZoneId) sheetTranslateY.setValue(0);
+  }, [selectedZoneId, sheetTranslateY]);
 
   const renderState = () => {
     if (globalState === 'loading') {
@@ -133,7 +183,6 @@ export function EquipmentAvailabilityMap() {
 
         <View style={{ position: 'relative', height: 420, borderRadius: Radius.xl, backgroundColor: t.bg, borderWidth: 2, borderColor: t.text, overflow: 'hidden' }}>
           {floorZones.map((zone) => {
-            const palette = statusPalette(zone.status, zone.color);
             return zone.areas.map((area, index) => (
               <Pressable
                 key={`${zone.id}:${index}`}
@@ -191,56 +240,100 @@ export function EquipmentAvailabilityMap() {
           transparent
           animationType="fade"
           visible={selectedZone !== null}
-          onRequestClose={() => setSelectedZoneId(null)}
+          onRequestClose={closeSelectedZone}
         >
-          <View style={{ flex: 1, padding: Space.lg, backgroundColor: withAlpha('#000000', 0.62), justifyContent: 'center' }}>
-            <Card style={{ maxHeight: '78%', gap: Space.md }}>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: t.text, fontSize: Size.lg, fontWeight: '800' }}>{selectedZone.name}</Text>
-                  <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4 }}>
-                    {selectedZone.availableCount} open · {selectedZone.totalCount} mapped stations
-                  </Text>
+          <View style={{ flex: 1, justifyContent: 'flex-end', paddingHorizontal: Space.md, paddingTop: Space.xl, paddingBottom: Space.md }}>
+            <Pressable
+              onPress={closeSelectedZone}
+              style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.58)' }}
+            />
+            <Animated.View style={{ width: '100%', maxWidth: 420, alignSelf: 'center', height: '86%', transform: [{ translateY: sheetTranslateY }] }}>
+              <Card style={{ flex: 1, gap: Space.md }}>
+                <View style={{ alignItems: 'center', paddingBottom: 2 }} {...sheetPanResponder.panHandlers}>
+                  <View style={{ width: 44, height: 5, borderRadius: Radius.full, backgroundColor: t.borderLight }} />
                 </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Close equipment zone popup"
-                  onPress={() => setSelectedZoneId(null)}
-                  style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.full, backgroundColor: t.surface2 }}
+
+                <View
+                  style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}
+                  {...sheetPanResponder.panHandlers}
                 >
-                  <Text style={{ color: t.text, fontSize: Size.sm, fontWeight: '900' }}>✕</Text>
-                </Pressable>
-              </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: t.text, fontSize: Size.lg, fontWeight: '800' }}>{selectedZone.name}</Text>
+                    <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4 }}>
+                      {selectedZone.availableCount} open · {selectedZone.totalCount} mapped stations
+                    </Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Close equipment zone popup"
+                    onPress={closeSelectedZone}
+                    style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radius.full, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.border }}
+                  >
+                    <Text style={{ color: t.text, fontSize: Size.sm, fontWeight: '800' }}>Close</Text>
+                  </Pressable>
+                </View>
 
-              <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.full, alignSelf: 'flex-start', backgroundColor: withAlpha(selectedZone.color, 0.14) }}>
-                <Text style={{ color: selectedZone.color, fontSize: Size.sm, fontWeight: '800' }}>{floor}</Text>
-              </View>
+                <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.full, alignSelf: 'flex-start', backgroundColor: withAlpha(selectedZone.color, 0.14) }}>
+                  <Text style={{ color: selectedZone.color, fontSize: Size.sm, fontWeight: '800' }}>{floor}</Text>
+                </View>
 
-              {selectedZone.equipment.length === 0 ? (
-                <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
-                  No live equipment rows are mapped to this zone yet. For v1, this zone stays visible as a grey fallback.
-                </Text>
-              ) : (
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: Space.sm }}>
-                  {selectedZone.equipment.map((item) => {
-                    const status = statuses[item.id] ?? 'unknown';
-                    const palette = statusPalette(status, selectedZone.color);
-                    return (
-                      <View key={item.id} style={{ padding: Space.md, borderRadius: Radius.lg, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.border }}>
-                        <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{item.name}</Text>
-                        <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 18 }}>{item.category}</Text>
-                        {item.description ? (
-                          <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 8, lineHeight: 18 }}>{item.description}</Text>
-                        ) : null}
-                        <Text style={{ color: palette.text, fontSize: Size.sm, fontWeight: '800', marginTop: 10 }}>
-                          {status === 'free' ? 'Available now' : status === 'occupied' ? 'Currently occupied' : 'Status unavailable'}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </ScrollView>
-              )}
-            </Card>
+                {selectedZone.equipment.length === 0 ? (
+                  <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
+                    No live equipment rows are mapped to this zone yet.
+                  </Text>
+                ) : (
+                  <ScrollView
+                    nestedScrollEnabled
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ gap: Space.sm, paddingBottom: Space.md }}
+                    showsVerticalScrollIndicator
+                  >
+                    {selectedZone.equipment.map((item) => {
+                      const status = statuses[item.id] ?? 'unknown';
+                      const palette = statusPalette(status, selectedZone.color);
+                      const watching = isInWatchlist(item.id);
+                      const occupied = status === 'occupied' || (item.quantity ?? 0) === 0;
+                      return (
+                        <View key={item.id} style={{ padding: Space.md, borderRadius: Radius.lg, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.border }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
+                            <EquipmentVisual name={item.name} category={item.category} size="sm" color={selectedZone.color} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{item.name}</Text>
+                              <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 18 }}>{item.category}</Text>
+                            </View>
+                            <Text style={{ color: palette.text, fontSize: Size.sm, fontWeight: '800' }}>
+                              {status === 'free' ? 'Available' : status === 'occupied' ? 'Occupied' : 'Unknown'}
+                            </Text>
+                          </View>
+                          {item.description ? (
+                            <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 8, lineHeight: 18 }}>{item.description}</Text>
+                          ) : null}
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`${watching ? 'Disable' : 'Enable'} free notification for ${item.name}`}
+                            onPress={() => (watching ? removeFromWatchlist(item.id) : addToWatchlist(item.id))}
+                            style={{
+                              alignSelf: 'flex-start',
+                              marginTop: Space.sm,
+                              paddingHorizontal: Space.md,
+                              paddingVertical: 7,
+                              borderRadius: Radius.full,
+                              backgroundColor: watching ? t.primary : t.surface2,
+                              borderWidth: 1,
+                              borderColor: watching ? t.primary : t.borderLight,
+                            }}
+                          >
+                            <Text style={{ color: watching ? t.onPrimary : t.text, fontSize: Size.xs, fontWeight: '800' }}>
+                              {watching ? 'Notifying when free' : occupied ? 'Notify when free' : 'Notify if it becomes busy then free'}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+              </Card>
+            </Animated.View>
           </View>
         </Modal>
       ) : null}

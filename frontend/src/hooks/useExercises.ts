@@ -128,6 +128,13 @@ interface UseExercisesReturn {
   /** Delete a set; renumbers remaining sets to stay contiguous. */
   deleteSet: (setId: string) => Promise<void>;
   /**
+   * Hard-delete an exercise (workout_exercises row) along with all its sets
+   * via the FK cascade. If the exercise was still active (ended_at IS NULL),
+   * the DB trigger increments gym_equipment.available_count back, so the
+   * equipment is properly released.
+   */
+  deleteExercise: (workoutExerciseId: string) => Promise<void>;
+  /**
    * Fetch all exercises for a workout, with their sets nested.
    * Sorted by exercise order_index, then set_number within each exercise.
    * Does not affect local state.
@@ -245,6 +252,24 @@ function normalizeWorkoutExerciseWithSets(row: WorkoutExerciseWithSetsRow): Work
   return { ...exercise, sets, exercise: exerciseInfo, equipment: equipmentInfo };
 }
 
+async function decrementEquipmentCount(equipmentId: string | number) {
+  const { error } = await supabase.rpc('decrement_equipment_count', {
+    equipment_id_input: Number(equipmentId),
+  });
+  if (error) {
+    throw new Error(error.message ?? 'Failed to reserve equipment');
+  }
+}
+
+async function incrementEquipmentCount(equipmentId: string | number) {
+  const { error } = await supabase.rpc('increment_equipment_count', {
+    equipment_id_input: Number(equipmentId),
+  });
+  if (error) {
+    throw new Error(error.message ?? 'Failed to release equipment');
+  }
+}
+
 /**
  * Hook for managing per-exercise lifecycle within a workout session.
  *
@@ -345,6 +370,15 @@ export function useExercises(): UseExercisesReturn {
 
       const newExercise = normalizeWorkoutExerciseRow(data as WorkoutExerciseRow);
 
+      try {
+        await decrementEquipmentCount(equipmentId);
+      } catch (reservationError) {
+        await supabase.from('workout_exercises').delete().eq('id', Number(newExercise.id));
+        const message = reservationError instanceof Error ? reservationError.message : 'Failed to reserve equipment';
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
 
       setActiveExercise(newExercise);
       setSetsForActiveExercise([]);
@@ -375,6 +409,16 @@ export function useExercises(): UseExercisesReturn {
 
       const updated = normalizeWorkoutExerciseRow(data as WorkoutExerciseRow);
 
+      if (updated.equipment_id) {
+        try {
+          await incrementEquipmentCount(updated.equipment_id);
+        } catch (releaseError) {
+          const message = releaseError instanceof Error ? releaseError.message : 'Failed to release equipment';
+          setError(message);
+          setLoading(false);
+          throw new Error(message);
+        }
+      }
 
       if (activeExercise?.id === workoutExerciseId) {
         setActiveExercise(null);
@@ -546,6 +590,63 @@ export function useExercises(): UseExercisesReturn {
   );
 
   /**
+   * Hard-delete a workout_exercises row. Cascades to exercise_sets via FK.
+   * If the row was still active (ended_at IS NULL), the DB trigger increments
+   * gym_equipment.available_count back, releasing the equipment.
+   */
+  const deleteExercise = useCallback(
+    async (workoutExerciseId: string): Promise<void> => {
+      setLoading(true);
+      setError(null);
+
+      const { data: existingRow, error: fetchError } = await supabase
+        .from('workout_exercises')
+        .select('id, equipment_id, ended_at')
+        .eq('id', Number(workoutExerciseId))
+        .single();
+
+      if (fetchError || !existingRow) {
+        const message = fetchError?.message ?? 'Exercise not found';
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      const { error: deleteError } = await supabase
+        .from('workout_exercises')
+        .delete()
+        .eq('id', Number(workoutExerciseId));
+
+      if (deleteError) {
+        const message = deleteError.message;
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
+      if (existingRow.equipment_id && existingRow.ended_at === null) {
+        try {
+          await incrementEquipmentCount(existingRow.equipment_id);
+        } catch (releaseError) {
+          const message = releaseError instanceof Error ? releaseError.message : 'Failed to release equipment';
+          setError(message);
+          setLoading(false);
+          throw new Error(message);
+        }
+      }
+
+      // Clear local active-exercise state if we just deleted the active one.
+      if (activeExercise?.id === workoutExerciseId) {
+        setActiveExercise(null);
+        setSetsForActiveExercise([]);
+      }
+
+      setLoading(false);
+    },
+    [activeExercise?.id],
+  );
+
+  /**
    * Fetch all exercises for a workout, with their sets nested inside.
    *
    * Returns an array sorted by order_index. Within each exercise, sets are
@@ -584,7 +685,7 @@ export function useExercises(): UseExercisesReturn {
       }
 
       const exercises = (data ?? []).map((row) =>
-        normalizeWorkoutExerciseWithSets(row as WorkoutExerciseWithSetsRow),
+        normalizeWorkoutExerciseWithSets(row as unknown as WorkoutExerciseWithSetsRow),
       );
 
       setLoading(false);
@@ -633,7 +734,7 @@ export function useExercises(): UseExercisesReturn {
 
       setLoading(false);
       if (!data) return null;
-      return normalizeWorkoutExerciseWithSets(data as WorkoutExerciseWithSetsRow);
+      return normalizeWorkoutExerciseWithSets(data as unknown as WorkoutExerciseWithSetsRow);
     },
     [],
   );
@@ -676,6 +777,7 @@ export function useExercises(): UseExercisesReturn {
     addSet,
     updateSet,
     deleteSet,
+    deleteExercise,
     getExercisesForWorkout,
     getActiveExercise,
     hydrateActiveExercise,

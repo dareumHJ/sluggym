@@ -18,8 +18,8 @@ export const PALETTES = {
     surface3: '#2C2B32',
     surfaceHi: '#35343D',
     text: '#FFFFFF',
-    textSecondary: '#8A8A95',
-    textMuted: '#5A5A65',
+    textSecondary: '#FFFFFF',
+    textMuted: '#F2F2F5',
     border: 'rgba(255,255,255,0.06)',
     borderLight: 'rgba(255,255,255,0.10)',
     borderStrong: 'rgba(255,255,255,0.16)',
@@ -84,6 +84,9 @@ export type Tweaks = {
   accent: AccentKey;
   occupancyStyle: 'ring' | 'dots' | 'bar';
   currentOccupancy: number;
+  units: 'kg' | 'lb';
+  equipmentNotifications: boolean;
+  privateProfile: boolean;
 };
 
 export const ThemeCtx = createContext<{
@@ -92,7 +95,15 @@ export const ThemeCtx = createContext<{
   setTweaks: (t: Partial<Tweaks>) => void;
 }>({
   theme: makeTheme('dark', 'lime'),
-  tweaks: { mode: 'dark', accent: 'lime', occupancyStyle: 'ring', currentOccupancy: 62 },
+  tweaks: {
+    mode: 'dark',
+    accent: 'lime',
+    occupancyStyle: 'ring',
+    currentOccupancy: 62,
+    units: 'kg',
+    equipmentNotifications: true,
+    privateProfile: false,
+  },
   setTweaks: () => {},
 });
 

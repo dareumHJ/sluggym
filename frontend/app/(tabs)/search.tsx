@@ -3,8 +3,11 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useTheme, Space, Radius, Size, withAlpha } from '../../src/constants/theme';
 import { Button, Card } from '../../src/components/primitives';
+import { EquipmentIconLegend, EquipmentVisual } from '../../src/components/EquipmentVisual';
+import { ExerciseFilterPanel } from '../../src/components/ExerciseFilterPanel';
 import { useEquipment } from '../../src/hooks/useEquipment';
 import { useExerciseCatalog } from '../../src/hooks/useExerciseCatalog';
+import { useNotifications } from '../../src/contexts/NotificationContext';
 
 type SearchMode = 'equipment' | 'exercises';
 
@@ -32,7 +35,7 @@ export default function SearchScreen() {
   const [exerciseEquipment, setExerciseEquipment] = useState('All');
   const [exerciseMuscle, setExerciseMuscle] = useState('All');
   const [exerciseLevel, setExerciseLevel] = useState('All');
-  const { equipment, filteredEquipment, categories, error, loading, refresh } = useEquipment(q, category);
+  const { equipment, filteredEquipment, categories, error, loading, connectionState, refresh } = useEquipment(q, category);
   const {
     exercises,
     filteredExercises,
@@ -47,20 +50,13 @@ export default function SearchScreen() {
     muscle: exerciseMuscle,
     level: exerciseLevel,
   });
+  const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useNotifications();
 
   const hasEquipmentFilters = q.trim() !== '' || category !== 'All';
-  const hasExerciseFilters = q.trim() !== '' || exerciseEquipment !== 'All' || exerciseMuscle !== 'All' || exerciseLevel !== 'All';
 
   const clearEquipmentFilters = () => {
     setQ('');
     setCategory('All');
-  };
-
-  const clearExerciseFilters = () => {
-    setQ('');
-    setExerciseEquipment('All');
-    setExerciseMuscle('All');
-    setExerciseLevel('All');
   };
 
   const chipStyle = (active: boolean) => ({
@@ -116,6 +112,22 @@ export default function SearchScreen() {
       <Button title="Retry" variant="secondary" onPress={onRetry} />
     </Card>
   );
+
+  const renderRealtimeStatus = () => {
+    if (connectionState === 'live') {
+      return (
+        <Text style={{ color: t.success, fontSize: Size.xs, fontWeight: '800', textAlign: 'center' }}>
+          Live equipment updates connected
+        </Text>
+      );
+    }
+
+    return (
+      <Text style={{ color: t.warning, fontSize: Size.xs, fontWeight: '800', textAlign: 'center' }}>
+        {connectionState === 'reconnecting' ? 'Reconnecting live equipment updates…' : 'Live equipment updates offline'}
+      </Text>
+    );
+  };
 
   const renderFilterChips = ({ label, options, value, onChange }: FilterChipsProps) => (
     <View>
@@ -179,103 +191,85 @@ export default function SearchScreen() {
 
     return (
       <>
+        {renderRealtimeStatus()}
+        <EquipmentIconLegend theme={t} />
         {error ? renderWarningBanner(error, () => void refresh()) : null}
         {loading ? <Text style={{ color: t.textSecondary, fontSize: Size.sm, textAlign: 'center' }}>Refreshing live equipment…</Text> : null}
-        {filteredEquipment.map((item) => (
-          <Card key={item.id} style={{ gap: Space.xs }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.md }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{item.name}</Text>
-                <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 20 }}>
-                  Category: {item.category}
-                  {item.location ? ` · ${item.location}` : ''}
-                </Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ color: t.primary, fontSize: Size.md, fontWeight: '800' }}>{item.quantity}</Text>
-                <Text style={{ color: t.textSecondary, fontSize: Size.sm, fontWeight: '700' }}>available</Text>
-              </View>
-            </View>
-            {item.description ? (
-              <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>{item.description}</Text>
-            ) : null}
-          </Card>
-        ))}
-      </>
-    );
-  };
-
-  const renderExerciseBody = () => {
-    if (exerciseLoading && exercises.length === 0) {
-      return renderStateCard({
-        title: 'Loading exercise catalog…',
-        body: 'Fetching exercises, muscle groups, and equipment tags from Supabase.',
-        loading: true,
-      });
-    }
-
-    if (exerciseError && exercises.length === 0) {
-      return renderStateCard({
-        title: 'Could not load exercises',
-        body: `${exerciseError}\nExercise search uses the Supabase exercises table.`,
-        actionTitle: 'Retry',
-        onAction: () => void refreshExercises(),
-        tone: 'error',
-      });
-    }
-
-    if (exercises.length === 0) {
-      return renderStateCard({
-        title: 'No exercises found.',
-        body: 'The exercise catalog table returned no rows.',
-        actionTitle: 'Reload',
-        onAction: () => void refreshExercises(),
-      });
-    }
-
-    if (filteredExercises.length === 0) {
-      return renderStateCard({
-        title: 'No exercises match those filters.',
-        body: hasExerciseFilters ? 'Clear the search, equipment, muscle, or level filters to broaden the catalog.' : undefined,
-        actionTitle: hasExerciseFilters ? 'Clear filters' : undefined,
-        onAction: hasExerciseFilters ? clearExerciseFilters : undefined,
-      });
-    }
-
-    return (
-      <>
-        {exerciseError ? renderWarningBanner(exerciseError, () => void refreshExercises()) : null}
-        {exerciseLoading ? <Text style={{ color: t.textSecondary, fontSize: Size.sm, textAlign: 'center' }}>Refreshing exercises…</Text> : null}
-        {filteredExercises.map((exercise) => (
-          <Card key={exercise.id} style={{ gap: Space.sm }}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{exercise.name}</Text>
-                <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 20 }}>
-                  {[pretty(exercise.equipmentRequired ?? 'No equipment'), pretty(exercise.level ?? 'Any level'), pretty(exercise.category ?? 'Exercise')].join(' · ')}
-                </Text>
-              </View>
-              {exercise.targetMuscle ? (
-                <View style={{ backgroundColor: withAlpha(t.primary, 0.15), paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-                  <Text style={{ color: t.primary, fontSize: Size.sm, fontWeight: '800' }}>{pretty(exercise.targetMuscle)}</Text>
+        {filteredEquipment.map((item) => {
+          const watching = isInWatchlist(item.id);
+          const occupied = (item.quantity ?? 0) === 0;
+          return (
+            <Card key={item.id} style={{ gap: Space.xs }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.md }}>
+                <EquipmentVisual name={item.name} category={item.category} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{item.name}</Text>
+                  <Text style={{ color: t.textSecondary, fontSize: Size.sm, marginTop: 4, lineHeight: 20 }}>
+                    Category: {item.category}
+                    {item.location ? ` · ${item.location}` : ''}
+                  </Text>
                 </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ color: t.primary, fontSize: Size.md, fontWeight: '800' }}>{item.quantity}</Text>
+                  <Text style={{ color: t.textSecondary, fontSize: Size.sm, fontWeight: '700' }}>available</Text>
+                </View>
+              </View>
+              {item.description ? (
+                <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>{item.description}</Text>
               ) : null}
-            </View>
-            {exercise.primaryMuscles.length > 0 ? (
-              <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
-                Primary: {exercise.primaryMuscles.map(pretty).join(', ')}
-              </Text>
-            ) : null}
-            {exercise.secondaryMuscles.length > 0 ? (
-              <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
-                Secondary: {exercise.secondaryMuscles.slice(0, 4).map(pretty).join(', ')}
-              </Text>
-            ) : null}
-          </Card>
-        ))}
+              {/* Notify-when-free toggle. Only meaningful when the equipment is currently busy. */}
+              <Pressable
+                onPress={() => (watching ? removeFromWatchlist(item.id) : addToWatchlist(item.id))}
+                style={{
+                  alignSelf: 'flex-start',
+                  marginTop: Space.xs,
+                  paddingHorizontal: Space.md,
+                  paddingVertical: 6,
+                  borderRadius: Radius.full,
+                  backgroundColor: watching ? t.primary : t.surface2,
+                  borderWidth: 1,
+                  borderColor: watching ? t.primary : t.borderLight,
+                }}
+              >
+                <Text
+                  style={{
+                    color: watching ? t.onPrimary : t.text,
+                    fontSize: Size.xs,
+                    fontWeight: '800',
+                  }}
+                >
+                  {watching ? '✓ Notifying when free' : occupied ? '🔔 Notify when free' : '🔔 Notify if it becomes busy then free'}
+                </Text>
+              </Pressable>
+            </Card>
+          );
+        })}
       </>
     );
   };
+
+  const renderExerciseBody = () => (
+    <ExerciseFilterPanel
+      mode="view"
+      virtualizedResults
+      exercises={exercises}
+      filteredExercises={filteredExercises}
+      equipmentOptions={equipmentOptions}
+      muscleOptions={muscleOptions}
+      levelOptions={levelOptions}
+      loading={exerciseLoading}
+      error={exerciseError}
+      onRetry={() => void refreshExercises()}
+      query={q}
+      onQueryChange={setQ}
+      equipmentFilter={exerciseEquipment}
+      onEquipmentFilterChange={setExerciseEquipment}
+      muscleFilter={exerciseMuscle}
+      onMuscleFilterChange={setExerciseMuscle}
+      levelFilter={exerciseLevel}
+      onLevelFilterChange={setExerciseLevel}
+    />
+  );
 
   return (
       <View style={{ flex: 1, backgroundColor: t.bg }}>
@@ -295,52 +289,54 @@ export default function SearchScreen() {
             );
           })}
         </View>
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: t.surface2,
-            borderRadius: Radius.full,
-            paddingHorizontal: Space.lg,
-            borderWidth: 1,
-            borderColor: t.borderLight,
-          }}
-        >
-          <Text style={{ color: t.textMuted, fontSize: Size.md, marginRight: 8 }}>⌕</Text>
-          <TextInput
-            value={q}
-            onChangeText={setQ}
-            placeholder={mode === 'equipment' ? 'Bench, rower, cardio…' : 'Squat, abs, barbell…'}
-            placeholderTextColor={t.textMuted}
-            style={{ flex: 1, color: t.text, paddingVertical: 12, fontSize: Size.md }}
-          />
-          {q !== '' ? (
-            <Text onPress={() => setQ('')} style={{ color: t.textMuted, fontSize: Size.lg }}>
-              ✕
-            </Text>
-          ) : null}
-        </View>
+        {mode === 'equipment' ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: t.surface2,
+              borderRadius: Radius.full,
+              paddingHorizontal: Space.lg,
+              borderWidth: 1,
+              borderColor: t.borderLight,
+            }}
+          >
+            <Text style={{ color: t.textMuted, fontSize: Size.md, marginRight: 8 }}>⌕</Text>
+            <TextInput
+              value={q}
+              onChangeText={setQ}
+              placeholder="Bench, rower, cardio…"
+              placeholderTextColor={t.textMuted}
+              style={{ flex: 1, color: t.text, paddingVertical: 12, fontSize: Size.md }}
+            />
+            {q !== '' ? (
+              <Text onPress={() => setQ('')} style={{ color: t.textMuted, fontSize: Size.lg }}>
+                ✕
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
       </View>
 
       {mode === 'equipment' ? (
         renderFilterChips({ label: 'Categories', options: categories, value: category, onChange: setCategory })
+      ) : null}
+
+      {mode === 'equipment' ? (
+        <Text style={{ color: t.textSecondary, fontSize: Size.sm, paddingHorizontal: Space.lg, marginTop: 6, marginBottom: Space.sm }}>
+          {`${filteredEquipment.length} visible · ${equipment.length} live rows`}
+        </Text>
+      ) : null}
+
+      {mode === 'equipment' ? (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: Space.lg, paddingBottom: 120, gap: Space.sm, flexGrow: 1 }}>
+          {renderEquipmentBody()}
+        </ScrollView>
       ) : (
-        <>
-          {renderFilterChips({ label: 'Equipment', options: equipmentOptions, value: exerciseEquipment, onChange: setExerciseEquipment })}
-          {renderFilterChips({ label: 'Muscles', options: muscleOptions, value: exerciseMuscle, onChange: setExerciseMuscle })}
-          {renderFilterChips({ label: 'Levels', options: levelOptions, value: exerciseLevel, onChange: setExerciseLevel })}
-        </>
+        <View style={{ flex: 1, paddingHorizontal: Space.lg }}>
+          {renderExerciseBody()}
+        </View>
       )}
-
-      <Text style={{ color: t.textSecondary, fontSize: Size.sm, paddingHorizontal: Space.lg, marginTop: 6, marginBottom: Space.sm }}>
-        {mode === 'equipment'
-          ? `${filteredEquipment.length} visible · ${equipment.length} live rows`
-          : `${filteredExercises.length} visible · ${exercises.length} exercises`}
-      </Text>
-
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: Space.lg, paddingBottom: 120, gap: Space.sm, flexGrow: 1 }}>
-        {mode === 'equipment' ? renderEquipmentBody() : renderExerciseBody()}
-      </ScrollView>
       </View>
   );
 }

@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import TabsLayout from '../app/(tabs)/_layout';
 import EquipmentMapScreen from '../app/(tabs)/map';
 import { useEquipmentMap } from '../src/hooks/useEquipmentMap';
+import { useNotifications } from '../src/contexts/NotificationContext';
 
 jest.mock('expo-router', () => {
   const React = require('react');
@@ -23,7 +24,12 @@ jest.mock('../src/hooks/useEquipmentMap', () => ({
   useEquipmentMap: jest.fn(),
 }));
 
+jest.mock('../src/contexts/NotificationContext', () => ({
+  useNotifications: jest.fn(),
+}));
+
 const mockUseEquipmentMap = useEquipmentMap as jest.MockedFunction<typeof useEquipmentMap>;
+const mockUseNotifications = useNotifications as jest.MockedFunction<typeof useNotifications>;
 
 function mockMapHook(overrides: Partial<ReturnType<typeof useEquipmentMap>> = {}) {
   mockUseEquipmentMap.mockReturnValue({
@@ -42,6 +48,15 @@ function mockMapHook(overrides: Partial<ReturnType<typeof useEquipmentMap>> = {}
 describe('Equipment map tab', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseNotifications.mockReturnValue({
+      isInWatchlist: jest.fn(() => false),
+      addToWatchlist: jest.fn(),
+      removeFromWatchlist: jest.fn(),
+      watchlist: new Set(),
+      toasts: [],
+      dismissToast: jest.fn(),
+      onToastTap: jest.fn(),
+    });
   });
 
   it('registers a dedicated Map bottom tab', () => {
@@ -83,8 +98,8 @@ describe('Equipment map tab', () => {
     expect(screen.getAllByText('Cable Zone').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cardio Zone').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Machine Zone').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Functional Area').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('4').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Functional Area')).toBeNull();
+    expect(screen.queryByText('4')).toBeNull();
   });
 
   it('keeps the loading state available in the dedicated tab', () => {
@@ -93,6 +108,17 @@ describe('Equipment map tab', () => {
     render(<EquipmentMapScreen />);
 
     expect(screen.getByText('Loading the equipment map…')).toBeTruthy();
+  });
+
+  it('keeps the error state available in the dedicated tab', () => {
+    const refresh = jest.fn(async () => undefined);
+    mockMapHook({ equipment: [], statuses: {}, globalState: 'error', refresh });
+
+    render(<EquipmentMapScreen />);
+    fireEvent.press(screen.getByText('Retry'));
+
+    expect(screen.getByText('Could not load the equipment map')).toBeTruthy();
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the empty state available in the dedicated tab', () => {

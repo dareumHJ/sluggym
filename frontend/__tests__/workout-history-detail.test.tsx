@@ -39,6 +39,7 @@ describe('WorkoutHistoryDetailScreen', () => {
         user_id: 'u-1',
         name: 'Push Day',
         target_muscle: ['Chest', 'Triceps'],
+        routine_id: null,
         started_at: '2026-05-10T01:00:00.000Z',
         ended_at: '2026-05-10T02:05:00.000Z',
         duration_min: 65,
@@ -56,6 +57,7 @@ describe('WorkoutHistoryDetailScreen', () => {
       addSet: jest.fn(async () => { throw new Error('not used'); }),
       updateSet: jest.fn(async () => { throw new Error('not used'); }),
       deleteSet: jest.fn(async () => undefined),
+      deleteExercise: jest.fn(async () => undefined),
       getExercisesForWorkout: jest.fn(async () => [
         {
           id: 'we-1',
@@ -66,6 +68,8 @@ describe('WorkoutHistoryDetailScreen', () => {
           started_at: '2026-05-10T01:05:00.000Z',
           ended_at: '2026-05-10T01:25:00.000Z',
           created_at: '2026-05-10T01:05:00.000Z',
+          exercise: null,
+          equipment: null,
           sets: [
             {
               id: 'set-1',
@@ -94,7 +98,7 @@ describe('WorkoutHistoryDetailScreen', () => {
     expect(screen.getByText('Exercise #12')).toBeTruthy();
     expect(screen.getByText('Equipment #88')).toBeTruthy();
     expect(screen.getByText('Set 1')).toBeTruthy();
-    expect(screen.getByText('80 kg × 8 reps')).toBeTruthy();
+    expect(screen.getByText('80 kg x 8 reps')).toBeTruthy();
     expect(screen.getByText('Completed')).toBeTruthy();
   });
 
@@ -111,7 +115,7 @@ describe('WorkoutHistoryDetailScreen', () => {
           started_at: '2026-05-10T01:05:00.000Z',
           ended_at: '2026-05-10T01:25:00.000Z',
           created_at: '2026-05-10T01:05:00.000Z',
-          exercise: { id: '12', name: 'Barbell Bench Press' },
+          exercise: { id: '12', name: 'Barbell Bench Press', target_muscle: 'Chest', exercise_type: 'Strength' },
           equipment: { id: '88', name: 'Flat Bench', category: 'Free Weights' },
           sets: [],
         },
