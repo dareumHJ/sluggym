@@ -8,15 +8,16 @@
 //             multiple options exist, or accepts "No equipment needed" when
 //             the exercise has no mapping.
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Radius, Size, Space, useTheme, withAlpha } from '../constants/theme';
 import { Card } from './primitives';
+import { ExerciseThumbnail, useExerciseImageFrameTick } from './ExerciseThumbnail';
 import type {
   ExerciseCatalogItem,
   ExerciseEquipmentOption,
 } from '../hooks/useExerciseCatalog';
-import { getExerciseImageFrameUrls } from '../lib/exerciseImages';
+import { UNASSIGNED_EQUIPMENT_FILTER } from '../lib/exerciseFilters';
 
 export type ExerciseFilterMode = 'view' | 'add';
 
@@ -42,10 +43,12 @@ interface ExerciseFilterPanelProps {
   onLevelFilterChange: (value: string) => void;
   // Add-mode callback
   onAddExercise?: (exercise: ExerciseCatalogItem, equipment: ExerciseEquipmentOption | null) => void;
+  virtualizedResults?: boolean;
 }
 
 function pretty(value: string) {
   if (value === 'All') return 'All';
+  if (value === UNASSIGNED_EQUIPMENT_FILTER) return 'No equipment assigned';
   return value
     .split(/[-_\s]+/)
     .filter(Boolean)
@@ -109,62 +112,7 @@ interface ResultRowProps {
   theme: ReturnType<typeof useTheme>;
 }
 
-function ExerciseThumbnail({ name, frameTick, theme }: { name: string; frameTick: number; theme: ReturnType<typeof useTheme> }) {
-  const frameUrls = useMemo(() => getExerciseImageFrameUrls(name), [name]);
-  const [failedUrls, setFailedUrls] = useState<Record<string, boolean>>({});
-  const [loadedUrls, setLoadedUrls] = useState<Record<string, boolean>>({});
-  const availableFrameUrls = frameUrls.filter((url) => !failedUrls[url]);
-  const preferredImageUrl = availableFrameUrls.length > 0 ? availableFrameUrls[frameTick % availableFrameUrls.length] : null;
-  const fallbackLoadedUrl = availableFrameUrls.find((url) => loadedUrls[url]) ?? null;
-  const visibleImageUrl = preferredImageUrl && loadedUrls[preferredImageUrl]
-    ? preferredImageUrl
-    : fallbackLoadedUrl ?? preferredImageUrl;
-
-  useEffect(() => {
-    setFailedUrls({});
-    setLoadedUrls({});
-  }, [name]);
-
-  return (
-    <View
-      style={{
-        width: 58,
-        height: 58,
-        borderRadius: Radius.md,
-        backgroundColor: theme.surface2,
-        borderWidth: 1,
-        borderColor: theme.borderLight,
-        overflow: 'hidden',
-        flexShrink: 0,
-      }}
-    >
-      {availableFrameUrls.map((imageUrl) => (
-        <Image
-          key={imageUrl}
-          source={{ uri: imageUrl, cache: 'force-cache' }}
-          accessibilityElementsHidden={imageUrl !== visibleImageUrl}
-          accessibilityLabel={imageUrl === visibleImageUrl ? `${name} exercise image` : undefined}
-          importantForAccessibility={imageUrl === visibleImageUrl ? 'auto' : 'no-hide-descendants'}
-          onLoad={() => setLoadedUrls((current) => ({ ...current, [imageUrl]: true }))}
-          onError={() => setFailedUrls((current) => ({ ...current, [imageUrl]: true }))}
-          resizeMode="cover"
-          style={{
-            position: 'absolute',
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            opacity: imageUrl === visibleImageUrl ? 1 : 0,
-          }}
-        />
-      ))}
-    </View>
-  );
-}
-
-function ResultRow({ exercise, mode, frameTick, selectedEquipmentId, onPickEquipment, onAdd, theme }: ResultRowProps) {
+const ResultRow = React.memo(function ResultRow({ exercise, mode, frameTick, selectedEquipmentId, onPickEquipment, onAdd, theme }: ResultRowProps) {
   const hasEquipmentOptions = exercise.equipmentOptions.length > 0;
   const requiresPick = mode === 'add' && hasEquipmentOptions && selectedEquipmentId === null;
 
@@ -243,7 +191,13 @@ function ResultRow({ exercise, mode, frameTick, selectedEquipmentId, onPickEquip
       )}
     </Card>
   );
-}
+}, (prev, next) =>
+  prev.exercise === next.exercise &&
+  prev.mode === next.mode &&
+  prev.frameTick === next.frameTick &&
+  prev.selectedEquipmentId === next.selectedEquipmentId &&
+  prev.theme === next.theme
+);
 
 export function ExerciseFilterPanel({
   mode,
@@ -264,19 +218,12 @@ export function ExerciseFilterPanel({
   levelFilter,
   onLevelFilterChange,
   onAddExercise,
+  virtualizedResults = false,
 }: ExerciseFilterPanelProps) {
   const t = useTheme();
   // Local selection state for equipment chip within each result row.
   const [selectedEquipmentByExercise, setSelectedEquipmentByExercise] = useState<Record<string, string>>({});
-  const [frameTick, setFrameTick] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setFrameTick((current) => current + 1);
-    }, 1200);
-
-    return () => clearInterval(interval);
-  }, []);
+  const frameTick = useExerciseImageFrameTick(filteredExercises.map((exercise) => exercise.name));
 
   // Auto-select the only option when an exercise has exactly one equipment.
   // This removes a click for the common case while still requiring an explicit
@@ -322,8 +269,24 @@ export function ExerciseFilterPanel({
     onLevelFilterChange('All');
   };
 
+  const renderExerciseRow = ({ item: exercise }: { item: ExerciseCatalogItem }) => {
+    return (
+      <ResultRow
+        exercise={exercise}
+        mode={mode}
+        frameTick={frameTick}
+        selectedEquipmentId={selectedEquipmentByExercise[exercise.id] ?? null}
+        onPickEquipment={(equipmentId) =>
+          setSelectedEquipmentByExercise((prev) => ({ ...prev, [exercise.id]: equipmentId }))
+        }
+        onAdd={() => handleAdd(exercise)}
+        theme={t}
+      />
+    );
+  };
+
   return (
-    <View style={{ gap: Space.md }}>
+    <View style={{ flex: virtualizedResults ? 1 : undefined, gap: Space.md }}>
       <TextInput
         value={query}
         onChangeText={onQueryChange}
@@ -396,7 +359,7 @@ export function ExerciseFilterPanel({
           <Text style={{ color: t.textMuted, fontSize: Size.xs, marginTop: Space.sm }}>Loading live catalog…</Text>
         </View>
       ) : (
-        <View style={{ gap: Space.sm }}>
+        <View style={{ flex: virtualizedResults ? 1 : undefined, gap: Space.sm }}>
           <Text style={{ color: t.textMuted, fontSize: Size.xs }}>
             {filteredExercises.length} of {exercises.length} exercises
           </Text>
@@ -408,20 +371,27 @@ export function ExerciseFilterPanel({
               </Text>
             </Card>
           ) : (
-            filteredExercises.map((exercise) => (
-              <ResultRow
-                key={exercise.id}
-                exercise={exercise}
-                mode={mode}
-                frameTick={frameTick}
-                selectedEquipmentId={selectedEquipmentByExercise[exercise.id] ?? null}
-                onPickEquipment={(equipmentId) =>
-                  setSelectedEquipmentByExercise((prev) => ({ ...prev, [exercise.id]: equipmentId }))
-                }
-                onAdd={() => handleAdd(exercise)}
-                theme={t}
+            virtualizedResults ? (
+              <FlatList
+                data={filteredExercises}
+                keyExtractor={(exercise) => exercise.id}
+                renderItem={renderExerciseRow}
+                ItemSeparatorComponent={() => <View style={{ height: Space.sm }} />}
+                initialNumToRender={8}
+                maxToRenderPerBatch={6}
+                updateCellsBatchingPeriod={80}
+                windowSize={5}
+                removeClippedSubviews
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 120 }}
               />
-            ))
+            ) : (
+              filteredExercises.map((exercise) => (
+                <React.Fragment key={exercise.id}>
+                  {renderExerciseRow({ item: exercise })}
+                </React.Fragment>
+              ))
+            )
           )}
         </View>
       )}

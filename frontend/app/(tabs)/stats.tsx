@@ -6,6 +6,7 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { useTheme, Space, Size, withAlpha } from '../../src/constants/theme';
 import { Button, Card, SectionLabel, StatTile } from '../../src/components/primitives';
 import { AnimatedSection } from '../../src/components/AnimatedSection';
+import { ExerciseThumbnail, useExerciseImageFrameTick } from '../../src/components/ExerciseThumbnail';
 import { useWorkouts, type Workout } from '../../src/hooks/useWorkouts';
 import { useExercises, type WorkoutExerciseWithSets } from '../../src/hooks/useExercises';
 
@@ -245,6 +246,7 @@ export default function StatsScreen() {
   );
   const weeklyVolume = useMemo(() => buildWeeklyVolumePoints(workoutDetails), [workoutDetails]);
   const recentPrs = useMemo(() => buildRecentPrs(workoutDetails), [workoutDetails]);
+  const recentPrFrameTick = useExerciseImageFrameTick(recentPrs.map((pr) => pr.exercise));
   const totalWeeklyVolume = weeklyVolume.reduce((sum, point) => sum + point.volume, 0);
 
   return (
@@ -311,9 +313,7 @@ export default function StatsScreen() {
 
           {recentPrs.map((p) => (
             <Card key={`${p.exercise}-${p.date}-${p.pr}`} style={{ flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: withAlpha(t.primary, 0.15), alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '900' }}>PR</Text>
-              </View>
+              <ExerciseThumbnail name={p.exercise} frameTick={recentPrFrameTick} size={48} theme={t} />
               <View style={{ flex: 1 }}>
                 <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{p.exercise}</Text>
                 <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{p.date}</Text>

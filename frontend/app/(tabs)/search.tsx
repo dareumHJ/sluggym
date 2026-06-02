@@ -251,6 +251,7 @@ export default function SearchScreen() {
   const renderExerciseBody = () => (
     <ExerciseFilterPanel
       mode="view"
+      virtualizedResults
       exercises={exercises}
       filteredExercises={filteredExercises}
       equipmentOptions={equipmentOptions}
@@ -327,9 +328,15 @@ export default function SearchScreen() {
         </Text>
       ) : null}
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: Space.lg, paddingBottom: 120, gap: Space.sm, flexGrow: 1 }}>
-        {mode === 'equipment' ? renderEquipmentBody() : renderExerciseBody()}
-      </ScrollView>
+      {mode === 'equipment' ? (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: Space.lg, paddingBottom: 120, gap: Space.sm, flexGrow: 1 }}>
+          {renderEquipmentBody()}
+        </ScrollView>
+      ) : (
+        <View style={{ flex: 1, paddingHorizontal: Space.lg }}>
+          {renderExerciseBody()}
+        </View>
+      )}
       </View>
   );
 }

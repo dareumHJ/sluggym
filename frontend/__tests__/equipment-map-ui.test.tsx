@@ -2,12 +2,18 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { EquipmentAvailabilityMap } from '../src/components/EquipmentAvailabilityMap';
 import { useEquipmentMap } from '../src/hooks/useEquipmentMap';
+import { useNotifications } from '../src/contexts/NotificationContext';
 
 jest.mock('../src/hooks/useEquipmentMap', () => ({
   useEquipmentMap: jest.fn(),
 }));
 
+jest.mock('../src/contexts/NotificationContext', () => ({
+  useNotifications: jest.fn(),
+}));
+
 const mockUseEquipmentMap = useEquipmentMap as jest.MockedFunction<typeof useEquipmentMap>;
+const mockUseNotifications = useNotifications as jest.MockedFunction<typeof useNotifications>;
 
 function mockHook(overrides: Partial<ReturnType<typeof useEquipmentMap>> = {}) {
   mockUseEquipmentMap.mockReturnValue({
@@ -25,8 +31,20 @@ function mockHook(overrides: Partial<ReturnType<typeof useEquipmentMap>> = {}) {
 }
 
 describe('EquipmentAvailabilityMap', () => {
+  const addToWatchlist = jest.fn();
+  const removeFromWatchlist = jest.fn();
+
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseNotifications.mockReturnValue({
+      isInWatchlist: jest.fn(() => false),
+      addToWatchlist,
+      removeFromWatchlist,
+      watchlist: new Set(),
+      toasts: [],
+      dismissToast: jest.fn(),
+      onToastTap: jest.fn(),
+    });
   });
 
   it('renders loading state', () => {
@@ -68,6 +86,8 @@ describe('EquipmentAvailabilityMap', () => {
     fireEvent.press(screen.getAllByLabelText('Open Bench Zone equipment popup')[0]);
     expect(screen.getByText('Bench Press')).toBeTruthy();
     expect(screen.getByText('Occupied')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Enable free notification for Bench Press'));
+    expect(addToWatchlist).toHaveBeenCalledWith('2');
 
     fireEvent.press(screen.getByLabelText('Close equipment zone popup'));
     await waitFor(() => expect(screen.queryByText('Bench Press')).toBeNull());

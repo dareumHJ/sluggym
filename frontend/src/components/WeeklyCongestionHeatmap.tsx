@@ -24,19 +24,6 @@ function cellColor(intensity: number | null, primary: string) {
   return withAlpha(primary, 0.14 + normalized * 0.72);
 }
 
-function getQuietestPeriods(data: WeeklyCongestionCell[]) {
-  const populated = data.filter((cell) => cell.intensity !== null);
-  if (populated.length === 0) return [] as WeeklyCongestionCell[];
-
-  const sorted = [...populated].sort((a, b) => (a.intensity ?? 101) - (b.intensity ?? 101));
-  const quietest = sorted.slice(0, 3);
-  const deduped = new Map<string, WeeklyCongestionCell>();
-  for (const cell of quietest) {
-    deduped.set(`${cell.day}-${cell.hourLabel}`, cell);
-  }
-  return Array.from(deduped.values());
-}
-
 function hasEnoughData(data: WeeklyCongestionCell[]) {
   const populated = data.filter((cell) => cell.intensity !== null);
   return populated.length >= Math.max(6, Math.floor(data.length * 0.35));
@@ -52,7 +39,6 @@ export function WeeklyCongestionHeatmap({
   const t = useTheme();
   const days = DEFAULT_DAY_ORDER.filter((day) => data.some((cell) => cell.day === day));
   const hours = DEFAULT_HOUR_ORDER.filter((hour) => data.some((cell) => cell.hourLabel === hour));
-  const quietest = getQuietestPeriods(data);
   const enoughData = hasEnoughData(data);
 
   return (
@@ -63,7 +49,7 @@ export function WeeklyCongestionHeatmap({
           <View style={{ gap: Space.sm }}>
             <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>Not enough weekly traffic data yet</Text>
             <Text style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
-              We’ll show clearer quiet-hour recommendations once more check-in data accumulates. For now, treat this as an early preview only.
+              We’ll show clearer trends once more check-in data accumulates. For now, treat this as an early preview only.
             </Text>
           </View>
         ) : null}
@@ -82,20 +68,11 @@ export function WeeklyCongestionHeatmap({
           </View>
           {days.map((day) => (
             <View key={day} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text
-                style={{
-                  color: t.textSecondary,
-                  fontSize: Size.sm,
-                  fontWeight: '700',
-                  height: CELL_HEIGHT,
-                  lineHeight: CELL_HEIGHT,
-                  width: DAY_LABEL_WIDTH,
-                }}
-              >
+              <Text style={{ color: t.textSecondary, fontSize: Size.xs, fontWeight: '700', width: DAY_LABEL_WIDTH }}>
                 {day}
               </Text>
               {hours.map((hour) => {
-                const cell = data.find((entry) => entry.day === day && entry.hourLabel === hour) ?? null;
+                const cell = data.find((entry) => entry.day === day && entry.hourLabel === hour);
                 const intensity = cell?.intensity ?? null;
                 return (
                   <View
@@ -103,10 +80,8 @@ export function WeeklyCongestionHeatmap({
                     style={{
                       flex: 1,
                       height: CELL_HEIGHT,
-                      borderRadius: Radius.sm,
+                      borderRadius: Radius.md,
                       backgroundColor: cellColor(intensity, t.primary),
-                      borderWidth: 1,
-                      borderColor: intensity === null ? t.border : withAlpha(t.primary, 0.28),
                     }}
                   />
                 );
@@ -117,7 +92,7 @@ export function WeeklyCongestionHeatmap({
 
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.md }}>
           <Text style={{ color: t.textSecondary, fontSize: Size.sm, flex: 1 }}>
-            Darker cells mean busier periods. Grey cells mean we do not have enough data for that slot yet.
+            Darker = busier. Grey = no data yet.
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Text style={{ color: t.textSecondary, fontSize: Size.xs, fontWeight: '700' }}>Quiet</Text>
@@ -130,17 +105,6 @@ export function WeeklyCongestionHeatmap({
             <Text style={{ color: t.textSecondary, fontSize: Size.xs, fontWeight: '700' }}>Busy</Text>
           </View>
         </View>
-
-        {enoughData ? (
-          <View style={{ gap: Space.xs }}>
-            <Text style={{ color: t.text, fontSize: Size.sm, fontWeight: '800' }}>Best bets for a quieter session</Text>
-            {quietest.map((cell) => (
-              <Text key={`${cell.day}-${cell.hourLabel}`} style={{ color: t.textSecondary, fontSize: Size.sm, lineHeight: 20 }}>
-                - {cell.day} at {cell.hourLabel}
-              </Text>
-            ))}
-          </View>
-        ) : null}
       </Card>
     </View>
   );

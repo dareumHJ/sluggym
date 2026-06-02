@@ -92,6 +92,7 @@ describe('useWorkouts session end flow', () => {
       data: { user: { id: 'user-1' } },
       error: null,
     });
+    rpcMock.mockResolvedValue({ error: null });
   });
 
   afterEach(() => {
@@ -101,8 +102,8 @@ describe('useWorkouts session end flow', () => {
   it('cascade-ends active workout exercises before ending the workout', async () => {
     queueInitialWorkoutRefresh();
     const activeFetch = queueActiveExerciseFetch([
-      { id: 'workout-exercise-1', equipment_id: 'equipment-1' },
-      { id: 'workout-exercise-2', equipment_id: 'equipment-2' },
+      { id: 'workout-exercise-1', equipment_id: '1' },
+      { id: 'workout-exercise-2', equipment_id: '2' },
     ]);
     const firstExerciseEnd = queueActiveExerciseEnd();
     const secondExerciseEnd = queueActiveExerciseEnd();
@@ -132,14 +133,13 @@ describe('useWorkouts session end flow', () => {
     expect(workoutEnd.select).toHaveBeenCalledWith('id, user_id, name, target_muscle, routine_id, started_at, ended_at, created_at');
     expect(updatedWorkout).toMatchObject({ id: 'workout-1', ended_at: endedAt, duration_min: 30 });
 
-    // Equipment count release is handled by the database trigger on workout_exercises.ended_at.
-    // The client should not double-increment counts through the old RPC path.
-    expect(rpcMock).not.toHaveBeenCalled();
+    expect(rpcMock).toHaveBeenCalledWith('increment_equipment_count', { equipment_id_input: 1 });
+    expect(rpcMock).toHaveBeenCalledWith('increment_equipment_count', { equipment_id_input: 2 });
   });
 
   it('does not end the workout when releasing an active exercise fails', async () => {
     queueInitialWorkoutRefresh();
-    queueActiveExerciseFetch([{ id: 'workout-exercise-1', equipment_id: 'equipment-1' }]);
+    queueActiveExerciseFetch([{ id: 'workout-exercise-1', equipment_id: '1' }]);
     queueActiveExerciseEnd({ message: 'release failed' });
 
     const { result } = renderHook(() => useWorkouts());
@@ -155,8 +155,63 @@ describe('useWorkouts session end flow', () => {
 });
 
 /* ------------------------------------------------------------------ */
-/* useExercises.deleteExercise                                         */
+/* useExercises equipment reservation lifecycle                         */
 /* ------------------------------------------------------------------ */
+
+function queueExistingActiveExerciseCheck(activeExercises: { id: string }[] = []) {
+  const is = jest.fn(async () => ({ data: activeExercises, error: null }));
+  const eq = jest.fn(() => ({ is }));
+  const select = jest.fn(() => ({ eq }));
+
+  fromMock.mockReturnValueOnce({ select });
+  return { select, eq, is };
+}
+
+function queueWorkoutExerciseInsert(row = {
+  id: '42',
+  workout_id: 'workout-1',
+  exercise_id: '5',
+  equipment_id: '7',
+  order_index: 1,
+  started_at: NOW,
+  ended_at: null,
+  created_at: NOW,
+}) {
+  const single = jest.fn(async () => ({ data: row, error: null }));
+  const select = jest.fn(() => ({ single }));
+  const insert = jest.fn(() => ({ select }));
+
+  fromMock.mockReturnValueOnce({ insert });
+  return { insert, select, single };
+}
+
+function queueWorkoutExerciseEnd(row = {
+  id: '42',
+  workout_id: 'workout-1',
+  exercise_id: '5',
+  equipment_id: '7',
+  order_index: 1,
+  started_at: NOW,
+  ended_at: NOW,
+  created_at: NOW,
+}) {
+  const single = jest.fn(async () => ({ data: row, error: null }));
+  const select = jest.fn(() => ({ single }));
+  const eq = jest.fn(() => ({ select }));
+  const update = jest.fn(() => ({ eq }));
+
+  fromMock.mockReturnValueOnce({ update });
+  return { update, eq, select, single };
+}
+
+function queueExerciseRowFetch(row: { id: string; equipment_id: string | null; ended_at: string | null }) {
+  const single = jest.fn(async () => ({ data: row, error: null }));
+  const eq = jest.fn(() => ({ single }));
+  const select = jest.fn(() => ({ eq }));
+
+  fromMock.mockReturnValueOnce({ select });
+  return { select, eq, single };
+}
 
 function queueExerciseDelete(error: { message: string } | null = null) {
   const eq = jest.fn(async () => ({ error }));
@@ -173,9 +228,51 @@ describe('useExercises.deleteExercise', () => {
       data: { user: { id: 'user-1' } },
       error: null,
     });
+    rpcMock.mockResolvedValue({ error: null });
+  });
+
+  it('reserves equipment when an exercise starts', async () => {
+    queueExistingActiveExerciseCheck();
+    const insert = queueWorkoutExerciseInsert();
+
+    const { result } = renderHook(() => useExercises());
+
+    await act(async () => {
+      await result.current.addExercise({
+        workoutId: 'workout-1',
+        exerciseId: '5',
+        equipmentId: '7',
+        orderIndex: 1,
+      });
+    });
+
+    expect(insert.insert).toHaveBeenCalledWith({
+      workout_id: 'workout-1',
+      exercise_id: 5,
+      equipment_id: 7,
+      order_index: 1,
+      started_at: expect.any(String),
+    });
+    expect(rpcMock).toHaveBeenCalledWith('decrement_equipment_count', { equipment_id_input: 7 });
+    expect(result.current.activeExercise).toMatchObject({ id: '42', equipment_id: '7' });
+  });
+
+  it('releases equipment when an exercise finishes', async () => {
+    const update = queueWorkoutExerciseEnd();
+
+    const { result } = renderHook(() => useExercises());
+
+    await act(async () => {
+      await result.current.endExercise('42', '7');
+    });
+
+    expect(update.update).toHaveBeenCalledWith({ ended_at: expect.any(String) });
+    expect(update.eq).toHaveBeenCalledWith('id', 42);
+    expect(rpcMock).toHaveBeenCalledWith('increment_equipment_count', { equipment_id_input: 7 });
   });
 
   it('deletes the workout_exercises row by id', async () => {
+    queueExerciseRowFetch({ id: '42', equipment_id: '7', ended_at: null });
     const exerciseDelete = queueExerciseDelete();
 
     const { result } = renderHook(() => useExercises());
@@ -184,28 +281,30 @@ describe('useExercises.deleteExercise', () => {
       await result.current.deleteExercise('42');
     });
 
-    // .from('workout_exercises').delete().eq('id', Number('42'))
     expect(fromMock).toHaveBeenCalledWith('workout_exercises');
     expect(exerciseDelete.delete).toHaveBeenCalledTimes(1);
     expect(exerciseDelete.eq).toHaveBeenCalledWith('id', 42);
-    // Equipment count release is handled by the DB trigger on DELETE.
-    expect(rpcMock).not.toHaveBeenCalled();
+    expect(rpcMock).toHaveBeenCalledWith('increment_equipment_count', { equipment_id_input: 7 });
   });
 
   it('throws and exposes an error when the database delete fails', async () => {
+    queueExerciseRowFetch({ id: '42', equipment_id: '7', ended_at: null });
     queueExerciseDelete({ message: 'delete blocked by policy' });
 
     const { result } = renderHook(() => useExercises());
 
-    await expect(result.current.deleteExercise('42')).rejects.toThrow(
-      'delete blocked by policy',
-    );
+    await act(async () => {
+      await expect(result.current.deleteExercise('42')).rejects.toThrow(
+        'delete blocked by policy',
+      );
+    });
 
     await waitFor(() => expect(result.current.error).toBe('delete blocked by policy'));
     expect(result.current.loading).toBe(false);
   });
 
   it('does not touch local state for non-active exercises', async () => {
+    queueExerciseRowFetch({ id: '42', equipment_id: '7', ended_at: '2026-05-09T00:00:00.000Z' });
     queueExerciseDelete();
 
     const { result } = renderHook(() => useExercises());
@@ -220,5 +319,6 @@ describe('useExercises.deleteExercise', () => {
     // No active exercise was hydrated, so deletion leaves local state alone.
     expect(result.current.activeExercise).toBeNull();
     expect(result.current.setsForActiveExercise).toEqual([]);
+    expect(rpcMock).not.toHaveBeenCalledWith('increment_equipment_count', { equipment_id_input: 7 });
   });
 });
