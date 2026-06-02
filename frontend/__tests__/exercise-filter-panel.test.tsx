@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { ExerciseFilterPanel } from '../src/components/ExerciseFilterPanel';
 import type { ExerciseCatalogItem } from '../src/hooks/useExerciseCatalog';
+import { UNASSIGNED_EQUIPMENT_FILTER } from '../src/lib/exerciseFilters';
 
 // Component is pure presentational — no need to mock supabase/auth.
 
@@ -51,7 +52,7 @@ function setup(overrides: Partial<React.ComponentProps<typeof ExerciseFilterPane
     mode: 'view',
     exercises: [benchPress, pushUp, dumbbellCurl],
     filteredExercises: [benchPress, pushUp, dumbbellCurl],
-    equipmentOptions: ['All', 'Flat Bench', 'Smith Machine', 'Adjustable Dumbbell'],
+    equipmentOptions: ['All', UNASSIGNED_EQUIPMENT_FILTER, 'Flat Bench', 'Smith Machine', 'Adjustable Dumbbell'],
     muscleOptions: ['All', 'chest', 'biceps', 'triceps'],
     levelOptions: ['All', 'beginner'],
     loading: false,
@@ -102,6 +103,15 @@ describe('ExerciseFilterPanel — view mode', () => {
 
     fireEvent.press(screen.getByText('Biceps'));
     expect(onMuscleFilterChange).toHaveBeenCalledWith('biceps');
+  });
+
+  it('offers a filter for exercises without assigned equipment', () => {
+    const onEquipmentFilterChange = jest.fn();
+    setup({ onEquipmentFilterChange });
+
+    fireEvent.press(screen.getByText('No equipment assigned'));
+
+    expect(onEquipmentFilterChange).toHaveBeenCalledWith(UNASSIGNED_EQUIPMENT_FILTER);
   });
 });
 

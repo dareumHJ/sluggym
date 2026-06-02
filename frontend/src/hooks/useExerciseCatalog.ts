@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { UNASSIGNED_EQUIPMENT_FILTER } from '../lib/exerciseFilters';
 import type { EquipmentListItem } from './useEquipment';
 
 /**
@@ -194,6 +195,7 @@ export function useExerciseCatalog(query = '', filters: ExerciseFilters = {}): U
   const equipmentOptions = useMemo(
     () => [
       'All',
+      UNASSIGNED_EQUIPMENT_FILTER,
       ...uniqueSorted(exercises.flatMap((exercise) => exercise.equipmentOptions.map((option) => option.category))),
     ],
     [exercises],
@@ -247,7 +249,10 @@ export function useExerciseCatalog(query = '', filters: ExerciseFilters = {}): U
 
         const matchesQuery = normalizedQuery === '' || searchable.includes(normalizedQuery);
         // OR semantics: matches if ANY mapped equipment's category matches the filter (decision 9).
-        const matchesEquipment = normalizedEquipment === 'all' || equipmentCategories.includes(normalizedEquipment);
+        const matchesEquipment =
+          normalizedEquipment === 'all' ||
+          (normalizedEquipment === UNASSIGNED_EQUIPMENT_FILTER.toLowerCase() && exercise.equipmentOptions.length === 0) ||
+          equipmentCategories.includes(normalizedEquipment);
         const matchesMuscle = normalizedMuscle === 'all' || muscles.includes(normalizedMuscle);
         const matchesLevel = normalizedLevel === 'all' || exercise.level?.toLowerCase() === normalizedLevel;
 

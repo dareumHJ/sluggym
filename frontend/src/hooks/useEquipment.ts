@@ -48,6 +48,27 @@ function normalizeEquipmentRow(row: EquipmentRow): EquipmentListItem {
   };
 }
 
+function areEquipmentListsEqual(a: EquipmentListItem[], b: EquipmentListItem[]) {
+  if (a.length !== b.length) return false;
+
+  for (let index = 0; index < a.length; index += 1) {
+    const left = a[index];
+    const right = b[index];
+    if (
+      left.id !== right.id ||
+      left.name !== right.name ||
+      left.category !== right.category ||
+      left.location !== right.location ||
+      left.quantity !== right.quantity ||
+      left.description !== right.description
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
   const [equipment, setEquipment] = useState<EquipmentListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,11 +80,16 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
   const channelNameRef = useRef(`gym-equipment-ui-refresh-${++equipmentChannelCounter}`);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
+  const equipmentRef = useRef<EquipmentListItem[]>([]);
 
-  const refresh = useCallback(async () => {
+  const refreshInternal = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (isMountedRef.current) {
-      setLoading(true);
-      setError(null);
+      if (!silent && equipmentRef.current.length === 0) {
+        setLoading(true);
+      }
+      if (!silent) {
+        setError(null);
+      }
     }
 
     const { data, error: fetchError } = await supabase
@@ -80,9 +106,17 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
       return;
     }
 
-    setEquipment((data ?? []).map(normalizeEquipmentRow));
+    const nextEquipment = (data ?? []).map(normalizeEquipmentRow);
+    equipmentRef.current = nextEquipment;
+    setEquipment((current) => {
+      if (areEquipmentListsEqual(current, nextEquipment)) return current;
+      return nextEquipment;
+    });
+    setError(null);
     setLoading(false);
   }, []);
+
+  const refresh = useCallback(() => refreshInternal({ silent: false }), [refreshInternal]);
 
   const updateConnectionState = useCallback((nextState: 'live' | 'reconnecting' | 'offline') => {
     connectionStateRef.current = nextState;
@@ -91,7 +125,7 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
 
   useEffect(() => {
     isMountedRef.current = true;
-    void refresh();
+    void refreshInternal({ silent: false });
 
     const clearReconnectTimer = () => {
       if (reconnectTimerRef.current) {
@@ -119,7 +153,7 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'gym_equipment' },
           () => {
-            void refresh();
+            void refreshInternal({ silent: true });
           },
         )
         .subscribe((status) => {
@@ -133,8 +167,10 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
 
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             updateConnectionState(status === 'CLOSED' ? 'offline' : 'reconnecting');
-            setError('Realtime connection interrupted. Pulling latest equipment data…');
-            void refresh();
+            if (equipmentRef.current.length === 0) {
+              setError('Realtime connection interrupted. Pulling latest equipment data…');
+            }
+            void refreshInternal({ silent: true });
 
             clearReconnectTimer();
             const delay = Math.min(
@@ -161,7 +197,7 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
           clearReconnectTimer();
           subscribeToEquipment();
         }
-        void refresh();
+        void refreshInternal({ silent: equipmentRef.current.length > 0 });
       }
     });
 
@@ -171,7 +207,7 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
       appStateSubscription.remove();
       removeCurrentChannel();
     };
-  }, [refresh, updateConnectionState]);
+  }, [refreshInternal, updateConnectionState]);
 
   const simulateRealtimeDisconnect = useCallback(() => {
     updateConnectionState('offline');

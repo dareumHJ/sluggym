@@ -97,6 +97,15 @@ function normalizeWorkoutRow(row: WorkoutRow): Workout {
   };
 }
 
+async function incrementEquipmentCount(equipmentId: string | number) {
+  const { error } = await supabase.rpc('increment_equipment_count', {
+    equipment_id_input: Number(equipmentId),
+  });
+  if (error) {
+    throw new Error(error.message ?? 'Failed to release equipment');
+  }
+}
+
 /**
  * Hook for managing workout sessions for the current authenticated user.
  *
@@ -254,6 +263,9 @@ export function useWorkouts(): UseWorkoutsReturn {
         throw new Error(`Failed to end active exercise ${ex.id}: ${updateExError.message}`);
       }
 
+      if (ex.equipment_id) {
+        await incrementEquipmentCount(ex.equipment_id);
+      }
     }
 
     // Now end the workout itself

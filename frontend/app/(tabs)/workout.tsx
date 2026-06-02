@@ -1,10 +1,11 @@
 // app/(tabs)/workout.tsx — multi-routine workout logger with Supabase persistence
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTheme, Space, Radius, Size, withAlpha } from '../../src/constants/theme';
 import { Card, Button, StatTile } from '../../src/components/primitives';
 import { ExerciseFilterPanel } from '../../src/components/ExerciseFilterPanel';
+import { ExerciseThumbnail, useExerciseImageFrameTick } from '../../src/components/ExerciseThumbnail';
 import { useEquipment, type EquipmentListItem } from '../../src/hooks/useEquipment';
 import {
   useExerciseCatalog,
@@ -21,6 +22,8 @@ function fmt(sec: number) { const m = Math.floor(sec/60), s = sec%60; return `${
 type WorkoutSet = { previous: string; kg: string; reps: string; completed: boolean };
 type WorkoutExercise = {
   id: string;
+  workoutExerciseId?: string;
+  lifecycle: 'planned' | 'active' | 'finished';
   exerciseId: string;
   /** Null for exercises with no equipment mapping (e.g., bodyweight). */
   equipmentId: string | null;
@@ -75,6 +78,7 @@ function createWorkoutExercise(
 ): WorkoutExercise {
   return {
     id: `${exercise.id}:${equipment?.id ?? 'none'}:${Date.now()}`,
+    lifecycle: 'planned',
     exerciseId: exercise.id,
     equipmentId: equipment?.id ?? null,
     name: exercise.name,
@@ -97,6 +101,7 @@ function createRoutineWorkoutExercise(
 
   return {
     id: `${savedExercise.exercise_id}:${savedExercise.equipment_id ?? 'none'}:${Date.now()}:${savedExercise.id}`,
+    lifecycle: 'planned',
     exerciseId: savedExercise.exercise_id,
     equipmentId: savedExercise.equipment_id,
     name: catalogExercise?.name ?? `Exercise #${savedExercise.exercise_id}`,
@@ -124,7 +129,7 @@ export default function WorkoutScreen() {
     typeof routineIdParam === 'string' && routineIdParam.length > 0 ? routineIdParam : null;
 
   const { routines, loading: routinesLoading, error: routinesError, refresh: refreshRoutines } = useRoutines();
-  const { workouts, activeWorkout, createWorkout, endWorkout, loading: workoutLoading, error: workoutError } = useWorkouts();
+  const { workouts, activeWorkout, createWorkout, endWorkout, loading: workoutLoading, error: workoutError, refresh: refreshWorkouts } = useWorkouts();
   const {
     addExercise: persistExercise,
     addSet: persistSet,
@@ -174,6 +179,13 @@ export default function WorkoutScreen() {
   const [routineLoading, setRoutineLoading] = useState(false);
   const [routineError, setRoutineError] = useState<string | null>(null);
   const endingInFlight = ending || exerciseSaving;
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshRoutines();
+      void refreshWorkouts();
+    }, [refreshRoutines, refreshWorkouts]),
+  );
 
   // If a workout is active, pin selection to its routine_id (so navigation can't lose context mid-workout)
   const activeRoutineId = activeWorkout?.routine_id ?? selectedRoutineId;
@@ -252,6 +264,10 @@ export default function WorkoutScreen() {
       ),
     [catalogExercises, equipment, lastRoutineExercises],
   );
+  const routineExerciseNames = useMemo(() => routineExercises.map((exercise) => exercise.name), [routineExercises]);
+  const routineFrameTick = useExerciseImageFrameTick(routineExerciseNames);
+  const activeExerciseNames = useMemo(() => exercises.map((exercise) => exercise.name), [exercises]);
+  const activeFrameTick = useExerciseImageFrameTick(activeExerciseNames);
 
   const routineGoal = useMemo(() => {
     if (selectedRoutine?.goal) return selectedRoutine.goal;
@@ -283,6 +299,7 @@ export default function WorkoutScreen() {
     () => exercises.filter((exercise) => exercise.sets.some((set) => set.completed && validateSet(set).isValid)).length,
     [exercises],
   );
+  const hasActiveExercise = useMemo(() => exercises.some((exercise) => exercise.lifecycle === 'active'), [exercises]);
 
   const startRoutineSession = useCallback(async () => {
     if (!selectedRoutine) {
@@ -350,18 +367,8 @@ export default function WorkoutScreen() {
     setDeleteError(null);
 
     try {
-      // If there's an active workout, find and delete any persisted rows for
-      // this exercise+equipment combo. The trigger releases the equipment.
-      if (activeWorkout) {
-        const persistedExercises = await getExercisesForWorkout(activeWorkout.id);
-        const matches = persistedExercises.filter(
-          (row) =>
-            row.exercise_id === target.exerciseId &&
-            row.equipment_id === target.equipmentId,
-        );
-        for (const row of matches) {
-          await persistDeleteExercise(row.id);
-        }
+      if (target.workoutExerciseId) {
+        await persistDeleteExercise(target.workoutExerciseId);
       }
 
       setExercises((prev) => prev.filter((_, i) => i !== idx));
@@ -376,6 +383,10 @@ export default function WorkoutScreen() {
   };
 
   const updateSet = (exIdx: number, sIdx: number, patch: Partial<WorkoutSet>) => {
+    if (exercises[exIdx]?.lifecycle === 'finished') {
+      setFormMessage('Finished exercises cannot be edited.');
+      return;
+    }
     setExercises(prev => prev.map((e, i) => i === exIdx ? { ...e, sets: e.sets.map((s, j) => j === sIdx ? { ...s, ...patch } : s) } : e));
     setFormMessage(null);
   };
@@ -408,6 +419,15 @@ export default function WorkoutScreen() {
       ),
     [exercises],
   );
+  const hasCompletedPlannedExercise = useMemo(
+    () =>
+      exercises.some(
+        (exercise) =>
+          exercise.lifecycle === 'planned' &&
+          exercise.sets.some((set) => set.completed && validateSet(set).isValid),
+      ),
+    [exercises],
+  );
 
   const requestEndSession = () => {
     setFinishAttempted(true);
@@ -426,40 +446,118 @@ export default function WorkoutScreen() {
       setFormMessage('Completed sets need an equipment mapping before they can be saved.');
       return;
     }
+    if (hasCompletedPlannedExercise) {
+      setFormMessage('Start each exercise before completing sets so equipment availability stays accurate.');
+      return;
+    }
     setFormMessage(null);
     setShowEndModal(true);
   };
 
-  const persistCompletedExercises = async () => {
-    if (!activeWorkout) return;
+  const persistCompletedSetsForExercise = async (exercise: WorkoutExercise) => {
+    if (!exercise.workoutExerciseId) {
+      throw new Error('Start this exercise before saving sets.');
+    }
 
-    let orderIndex = 1;
-    for (const exercise of exercises) {
-      const completedSets = exercise.sets.filter((set) => set.completed && validateSet(set).isValid);
-      if (completedSets.length === 0) continue;
-      if (exercise.equipmentId === null) {
-        throw new Error('Completed sets need an equipment mapping before they can be saved.');
-      }
+    const completedSets = exercise.sets.filter((set) => set.completed && validateSet(set).isValid);
+    for (const [setIndex, set] of completedSets.entries()) {
+      await persistSet({
+        workoutExerciseId: exercise.workoutExerciseId,
+        setNumber: setIndex + 1,
+        weight: parseNumber(set.kg),
+        reps: parseNumber(set.reps),
+        isCompleted: true,
+      });
+    }
+  };
 
-      const workoutExercise = await persistExercise({
+  const startExercise = async (exIdx: number) => {
+    const exercise = exercises[exIdx];
+    if (!exercise) return;
+    if (!activeWorkout) {
+      setFormMessage('Start a session before starting an exercise.');
+      return;
+    }
+    if (exercise.lifecycle === 'active') return;
+    if (exercise.lifecycle === 'finished') {
+      setFormMessage('This exercise is already finished.');
+      return;
+    }
+    if (hasActiveExercise) {
+      setFormMessage('Finish the current exercise before starting another one.');
+      return;
+    }
+    if (exercise.equipmentId === null) {
+      setFormMessage('Choose a mapped equipment option before starting this exercise.');
+      return;
+    }
+
+    setFormMessage(null);
+    setEndError(null);
+
+    try {
+      const persisted = await persistExercise({
         workoutId: activeWorkout.id,
         exerciseId: exercise.exerciseId,
         equipmentId: exercise.equipmentId,
-        orderIndex,
+        orderIndex: exIdx + 1,
       });
+      setExercises((prev) =>
+        prev.map((item, index) =>
+          index === exIdx ? { ...item, workoutExerciseId: persisted.id, lifecycle: 'active' } : item,
+        ),
+      );
+      void refreshEquipment();
+    } catch (error) {
+      setFormMessage(getErrorMessage(error));
+    }
+  };
 
-      for (const [setIndex, set] of completedSets.entries()) {
-        await persistSet({
-          workoutExerciseId: workoutExercise.id,
-          setNumber: setIndex + 1,
-          weight: parseNumber(set.kg),
-          reps: parseNumber(set.reps),
-          isCompleted: true,
-        });
+  const finishExercise = async (exIdx: number) => {
+    const exercise = exercises[exIdx];
+    if (!exercise) return;
+    if (exercise.lifecycle !== 'active') {
+      setFormMessage('Start this exercise before finishing it.');
+      return;
+    }
+    if (!exercise.workoutExerciseId || !exercise.equipmentId) {
+      setFormMessage('This exercise is missing its equipment reservation.');
+      return;
+    }
+
+    const hasInvalidCompleted = exercise.sets.some((set) => set.completed && !validateSet(set).isValid);
+    if (hasInvalidCompleted) {
+      setFinishAttempted(true);
+      setFormMessage('Fix invalid completed sets before finishing this exercise.');
+      return;
+    }
+
+    setFormMessage(null);
+    setEndError(null);
+
+    try {
+      await persistCompletedSetsForExercise(exercise);
+      await finishPersistedExercise(exercise.workoutExerciseId, exercise.equipmentId);
+      setExercises((prev) =>
+        prev.map((item, index) => (index === exIdx ? { ...item, lifecycle: 'finished' } : item)),
+      );
+      void refreshEquipment();
+    } catch (error) {
+      setFormMessage(getErrorMessage(error));
+    }
+  };
+
+  const finishActiveExercises = async () => {
+    if (!activeWorkout) return;
+
+    for (const exercise of exercises) {
+      if (exercise.lifecycle !== 'active') continue;
+      if (!exercise.workoutExerciseId || !exercise.equipmentId) {
+        throw new Error('An active exercise is missing its equipment reservation.');
       }
 
-      await finishPersistedExercise(workoutExercise.id, exercise.equipmentId);
-      orderIndex += 1;
+      await persistCompletedSetsForExercise(exercise);
+      await finishPersistedExercise(exercise.workoutExerciseId, exercise.equipmentId);
     }
   };
 
@@ -470,7 +568,7 @@ export default function WorkoutScreen() {
     setEndError(null);
 
     try {
-      await persistCompletedExercises();
+      await finishActiveExercises();
       await endWorkout(activeWorkout.id);
       setShowEndModal(false);
       // Refresh routines so last_used_at sorts this routine to the top next time
@@ -484,6 +582,14 @@ export default function WorkoutScreen() {
   };
 
   const toggleComplete = (exIdx: number, sIdx: number) => {
+    if (exercises[exIdx].lifecycle === 'planned') {
+      setFormMessage('Start this exercise before completing sets.');
+      return;
+    }
+    if (exercises[exIdx].lifecycle === 'finished') {
+      setFormMessage('Finished exercises cannot be changed.');
+      return;
+    }
     const s = exercises[exIdx].sets[sIdx];
     if (!s.completed && !validateSet(s).isValid) {
       markSetTouched(exercises[exIdx].id, sIdx);
@@ -497,6 +603,10 @@ export default function WorkoutScreen() {
   };
 
   const addSet = (exIdx: number) => {
+    if (exercises[exIdx]?.lifecycle === 'finished') {
+      setFormMessage('Finished exercises cannot be changed.');
+      return;
+    }
     setExercises(prev => prev.map((e, i) => {
       if (i !== exIdx) return e;
       const nextCount = e.sets.length + 1;
@@ -719,9 +829,12 @@ export default function WorkoutScreen() {
           {routineExercises.map((exercise) => (
             <View key={exercise.id} style={{ padding: Space.md, borderRadius: Radius.lg, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.borderLight, gap: Space.xs }}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Space.md }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{exercise.name}</Text>
-                  <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{exercise.equipmentName}</Text>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: Space.md }}>
+                  <ExerciseThumbnail name={exercise.name} frameTick={routineFrameTick} size={52} theme={t} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800' }}>{exercise.name}</Text>
+                    <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{exercise.equipmentName}</Text>
+                  </View>
                 </View>
                 <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '800' }}>{exercise.sets.length} sets</Text>
               </View>
@@ -811,12 +924,15 @@ export default function WorkoutScreen() {
           <Card key={ex.id} style={{ marginBottom: Space.md }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: Space.sm, gap: Space.sm }}>
               <Pressable
-                style={{ flex: 1 }}
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: Space.md }}
                 onPress={() => ex.equipmentId && router.push(`/equipment/${ex.equipmentId}`)}
                 disabled={ex.equipmentId === null}
               >
-                <Text style={{ color: t.primary, fontSize: Size.md, fontWeight: '800' }}>{ex.name}</Text>
-                <Text style={{ color: t.textMuted, fontSize: 10, marginTop: 2 }}>{ex.equipmentName}</Text>
+                <ExerciseThumbnail name={ex.name} frameTick={activeFrameTick} size={52} theme={t} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: t.primary, fontSize: Size.md, fontWeight: '800' }}>{ex.name}</Text>
+                  <Text style={{ color: t.textMuted, fontSize: 10, marginTop: 2 }}>{ex.equipmentName}</Text>
+                </View>
               </Pressable>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}>
                 {ex.notes ? (
@@ -839,6 +955,51 @@ export default function WorkoutScreen() {
                   <Text style={{ color: t.textMuted, fontSize: Size.md, fontWeight: '700', lineHeight: Size.md + 2 }}>×</Text>
                 </Pressable>
               </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.sm, marginBottom: Space.sm }}>
+              <Text
+                style={{
+                  color: ex.lifecycle === 'active' ? t.success : ex.lifecycle === 'finished' ? t.textMuted : t.warning,
+                  fontSize: Size.xs,
+                  fontWeight: '800',
+                }}
+              >
+                {ex.lifecycle === 'active'
+                  ? 'Active · equipment reserved'
+                  : ex.lifecycle === 'finished'
+                    ? 'Finished · equipment released'
+                    : 'Planned · equipment not reserved'}
+              </Text>
+              {ex.lifecycle === 'planned' ? (
+                <Pressable
+                  onPress={() => void startExercise(exIdx)}
+                  disabled={exerciseSaving || endingInFlight || hasActiveExercise || ex.equipmentId === null}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    borderRadius: Radius.full,
+                    backgroundColor: withAlpha(t.primary, 0.14),
+                    opacity: exerciseSaving || endingInFlight || hasActiveExercise || ex.equipmentId === null ? 0.55 : 1,
+                  }}
+                >
+                  <Text style={{ color: t.primary, fontSize: Size.xs, fontWeight: '900' }}>Start exercise</Text>
+                </Pressable>
+              ) : null}
+              {ex.lifecycle === 'active' ? (
+                <Pressable
+                  onPress={() => void finishExercise(exIdx)}
+                  disabled={exerciseSaving || endingInFlight}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    borderRadius: Radius.full,
+                    backgroundColor: withAlpha(t.success, 0.14),
+                    opacity: exerciseSaving || endingInFlight ? 0.55 : 1,
+                  }}
+                >
+                  <Text style={{ color: t.success, fontSize: Size.xs, fontWeight: '900' }}>Finish exercise</Text>
+                </Pressable>
+              ) : null}
             </View>
             {/* Column headers */}
             <View style={{ flexDirection: 'row', paddingVertical: 4 }}>
@@ -863,6 +1024,7 @@ export default function WorkoutScreen() {
                     value={s.kg}
                     onChangeText={v => updateSet(exIdx, sIdx, { kg: v })}
                     onBlur={() => markTouched(ex.id, sIdx, 'kg')}
+                    editable={ex.lifecycle !== 'finished'}
                     keyboardType="numeric"
                     placeholder="—"
                     placeholderTextColor={t.textMuted}
@@ -872,6 +1034,7 @@ export default function WorkoutScreen() {
                     value={s.reps}
                     onChangeText={v => updateSet(exIdx, sIdx, { reps: v })}
                     onBlur={() => markTouched(ex.id, sIdx, 'reps')}
+                    editable={ex.lifecycle !== 'finished'}
                     keyboardType="numeric"
                     placeholder="—"
                     placeholderTextColor={t.textMuted}
@@ -903,16 +1066,17 @@ export default function WorkoutScreen() {
 
       <Modal transparent visible={showExercisePicker} animationType="slide" onRequestClose={() => setShowExercisePicker(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', justifyContent: 'flex-end' }}>
-          <View style={{ maxHeight: '82%', backgroundColor: t.bg, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Space.lg, gap: Space.md }}>
+          <View style={{ height: '82%', backgroundColor: t.bg, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Space.lg, gap: Space.md }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={{ color: t.text, fontSize: Size.xl, fontWeight: '800' }}>Add exercise</Text>
               <Pressable onPress={() => setShowExercisePicker(false)}>
                 <Text style={{ color: t.textMuted, fontSize: Size.xl }}>✕</Text>
               </Pressable>
             </View>
-            <ScrollView contentContainerStyle={{ paddingBottom: Space.lg }}>
+            <View style={{ flex: 1 }}>
               <ExerciseFilterPanel
                 mode="add"
+                virtualizedResults
                 exercises={catalogExercises}
                 filteredExercises={filteredExercises}
                 equipmentOptions={equipmentOptions}
@@ -934,7 +1098,7 @@ export default function WorkoutScreen() {
                 onLevelFilterChange={setPickerLevel}
                 onAddExercise={addSelectedExercise}
               />
-            </ScrollView>
+            </View>
           </View>
         </View>
       </Modal>

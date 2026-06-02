@@ -42,13 +42,38 @@ function normalizeRoutineRow(row: RoutineRow): Routine {
 }
 
 function compareByLastUsed(a: Routine, b: Routine): number {
-  // Most recent last_used_at first, nulls last (never-used routines at bottom)
-  if (a.lastUsedAt === null && b.lastUsedAt === null) {
-    return b.createdAt.localeCompare(a.createdAt);
+  // Most recent activity first. New routines have no last_used_at yet, so use
+  // created_at to keep them visible immediately after saving.
+  const aActivity = a.lastUsedAt ?? a.createdAt;
+  const bActivity = b.lastUsedAt ?? b.createdAt;
+  return bActivity.localeCompare(aActivity);
+}
+
+type RoutineChange =
+  | { type: 'upsert'; routine: Routine }
+  | { type: 'delete'; id: string };
+
+const routineChangeListeners = new Set<(change: RoutineChange) => void>();
+
+function emitRoutineChange(change: RoutineChange) {
+  for (const listener of routineChangeListeners) {
+    listener(change);
   }
-  if (a.lastUsedAt === null) return 1;
-  if (b.lastUsedAt === null) return -1;
-  return b.lastUsedAt.localeCompare(a.lastUsedAt);
+}
+
+function subscribeToRoutineChanges(listener: (change: RoutineChange) => void) {
+  routineChangeListeners.add(listener);
+  return () => {
+    routineChangeListeners.delete(listener);
+  };
+}
+
+function upsertRoutine(list: Routine[], routine: Routine) {
+  const next = list.some((item) => item.id === routine.id)
+    ? list.map((item) => (item.id === routine.id ? routine : item))
+    : [routine, ...list];
+  next.sort(compareByLastUsed);
+  return next;
 }
 
 export function useRoutines(): UseRoutinesReturn {
@@ -88,6 +113,18 @@ export function useRoutines(): UseRoutinesReturn {
     void refresh();
   }, [refresh]);
 
+  useEffect(
+    () =>
+      subscribeToRoutineChanges((change) => {
+        if (change.type === 'upsert') {
+          setRoutines((prev) => upsertRoutine(prev, change.routine));
+          return;
+        }
+        setRoutines((prev) => prev.filter((routine) => routine.id !== change.id));
+      }),
+    [],
+  );
+
   const createRoutine = useCallback(
     async ({ name, goal }: { name: string; goal?: string | null }): Promise<Routine | null> => {
       if (!user) {
@@ -118,11 +155,8 @@ export function useRoutines(): UseRoutinesReturn {
       }
 
       const created = normalizeRoutineRow({ ...data, last_used_at: null });
-      setRoutines((prev) => {
-        const next = [created, ...prev];
-        next.sort(compareByLastUsed);
-        return next;
-      });
+      setRoutines((prev) => upsertRoutine(prev, created));
+      emitRoutineChange({ type: 'upsert', routine: created });
       setError(null);
       return created;
     },
@@ -173,7 +207,8 @@ export function useRoutines(): UseRoutinesReturn {
         ...data,
         last_used_at: previous?.lastUsedAt ?? null,
       });
-      setRoutines((prev) => prev.map((routine) => (routine.id === id ? updated : routine)));
+      setRoutines((prev) => upsertRoutine(prev, updated));
+      emitRoutineChange({ type: 'upsert', routine: updated });
       setError(null);
       return updated;
     },
@@ -198,6 +233,7 @@ export function useRoutines(): UseRoutinesReturn {
       }
 
       setRoutines((prev) => prev.filter((routine) => routine.id !== id));
+      emitRoutineChange({ type: 'delete', id });
       setError(null);
       return true;
     },
