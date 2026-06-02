@@ -84,6 +84,9 @@ export type Tweaks = {
   accent: AccentKey;
   occupancyStyle: 'ring' | 'dots' | 'bar';
   currentOccupancy: number;
+  units: 'kg' | 'lb';
+  equipmentNotifications: boolean;
+  privateProfile: boolean;
 };
 
 export const ThemeCtx = createContext<{
@@ -92,7 +95,15 @@ export const ThemeCtx = createContext<{
   setTweaks: (t: Partial<Tweaks>) => void;
 }>({
   theme: makeTheme('dark', 'lime'),
-  tweaks: { mode: 'dark', accent: 'lime', occupancyStyle: 'ring', currentOccupancy: 62 },
+  tweaks: {
+    mode: 'dark',
+    accent: 'lime',
+    occupancyStyle: 'ring',
+    currentOccupancy: 62,
+    units: 'kg',
+    equipmentNotifications: true,
+    privateProfile: false,
+  },
   setTweaks: () => {},
 });
 

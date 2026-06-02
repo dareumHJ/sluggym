@@ -10,6 +10,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useEquipment } from '../hooks/useEquipment';
 import { detectFreeTransitions, type EquipmentSnapshot } from '../lib/equipmentNotifications';
+import { useTweaks } from '../constants/theme';
 
 const DEBOUNCE_MS = 2 * 60 * 1000; // 2 minutes per equipment (decision 4)
 const MAX_TOASTS = 3; // simultaneous toasts (decision 3)
@@ -43,6 +44,7 @@ const NotificationContext = createContext<NotificationContextValue | null>(null)
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [watchlist, setWatchlist] = useState<Set<string>>(() => new Set());
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const { tweaks } = useTweaks();
 
   // Hook into the existing realtime-equipment hook.
   // Note: this is a separate subscription from screens that also call
@@ -67,6 +69,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   // Detect transitions whenever equipment data updates.
   useEffect(() => {
+    if (!tweaks.equipmentNotifications) {
+      prevSnapshotsRef.current = currentSnapshots;
+      setToasts([]);
+      return;
+    }
+
     const now = Date.now();
     const transitions = detectFreeTransitions(
       prevSnapshotsRef.current,
@@ -97,7 +105,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
 
     prevSnapshotsRef.current = currentSnapshots;
-  }, [currentSnapshots, watchlist]);
+  }, [currentSnapshots, tweaks.equipmentNotifications, watchlist]);
 
   // Note: toasts no longer auto-dismiss. They persist until the user taps
   // them (which also removes the equipment from the watchlist) or until they

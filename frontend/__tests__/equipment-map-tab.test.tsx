@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import TabsLayout from '../app/(tabs)/_layout';
 import EquipmentMapScreen from '../app/(tabs)/map';
 import { useEquipmentMap } from '../src/hooks/useEquipmentMap';
+import { useNotifications } from '../src/contexts/NotificationContext';
 
 jest.mock('expo-router', () => {
   const React = require('react');
@@ -23,7 +24,12 @@ jest.mock('../src/hooks/useEquipmentMap', () => ({
   useEquipmentMap: jest.fn(),
 }));
 
+jest.mock('../src/contexts/NotificationContext', () => ({
+  useNotifications: jest.fn(),
+}));
+
 const mockUseEquipmentMap = useEquipmentMap as jest.MockedFunction<typeof useEquipmentMap>;
+const mockUseNotifications = useNotifications as jest.MockedFunction<typeof useNotifications>;
 
 function mockMapHook(overrides: Partial<ReturnType<typeof useEquipmentMap>> = {}) {
   mockUseEquipmentMap.mockReturnValue({
@@ -42,6 +48,15 @@ function mockMapHook(overrides: Partial<ReturnType<typeof useEquipmentMap>> = {}
 describe('Equipment map tab', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseNotifications.mockReturnValue({
+      isInWatchlist: jest.fn(() => false),
+      addToWatchlist: jest.fn(),
+      removeFromWatchlist: jest.fn(),
+      watchlist: new Set(),
+      toasts: [],
+      dismissToast: jest.fn(),
+      onToastTap: jest.fn(),
+    });
   });
 
   it('registers a dedicated Map bottom tab', () => {

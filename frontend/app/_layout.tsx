@@ -11,16 +11,19 @@ import { useTheme, useTweaks } from '../src/constants/theme';
 function Gate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const segments = useSegments();
+  const segmentList = segments as readonly string[];
   const t = useTheme();
-  const inAuth = segments[0] === '(auth)';
+  const inAuth = segmentList[0] === '(auth)';
+  const inAuthCallback = segmentList[0] === 'auth' && segmentList[1] === 'callback';
+  const inPublicAuthFlow = inAuth || inAuthCallback;
 
   useEffect(() => {
     if (loading) return;
-    if (!user && !inAuth) router.replace('/(auth)/login');
+    if (!user && !inPublicAuthFlow) router.replace('/(auth)/login');
     else if (user && inAuth) router.replace('/');
-  }, [inAuth, loading, user]);
+  }, [inAuth, inPublicAuthFlow, loading, user]);
 
-  if (loading || (!user && !inAuth) || (user && inAuth)) {
+  if (loading || (!user && !inPublicAuthFlow) || (user && inAuth)) {
     return (
       <View
         style={{
@@ -53,6 +56,7 @@ function RootStack() {
           }}
         >
           <Stack.Screen name="(auth)" />
+          <Stack.Screen name="auth/callback" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="equipment/[id]" options={{ presentation: 'card' }} />
           <Stack.Screen name="routines" options={{ presentation: 'card' }} />

@@ -252,6 +252,24 @@ function normalizeWorkoutExerciseWithSets(row: WorkoutExerciseWithSetsRow): Work
   return { ...exercise, sets, exercise: exerciseInfo, equipment: equipmentInfo };
 }
 
+async function decrementEquipmentCount(equipmentId: string | number) {
+  const { error } = await supabase.rpc('decrement_equipment_count', {
+    equipment_id_input: Number(equipmentId),
+  });
+  if (error) {
+    throw new Error(error.message ?? 'Failed to reserve equipment');
+  }
+}
+
+async function incrementEquipmentCount(equipmentId: string | number) {
+  const { error } = await supabase.rpc('increment_equipment_count', {
+    equipment_id_input: Number(equipmentId),
+  });
+  if (error) {
+    throw new Error(error.message ?? 'Failed to release equipment');
+  }
+}
+
 /**
  * Hook for managing per-exercise lifecycle within a workout session.
  *
@@ -352,6 +370,15 @@ export function useExercises(): UseExercisesReturn {
 
       const newExercise = normalizeWorkoutExerciseRow(data as WorkoutExerciseRow);
 
+      try {
+        await decrementEquipmentCount(equipmentId);
+      } catch (reservationError) {
+        await supabase.from('workout_exercises').delete().eq('id', Number(newExercise.id));
+        const message = reservationError instanceof Error ? reservationError.message : 'Failed to reserve equipment';
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
 
       setActiveExercise(newExercise);
       setSetsForActiveExercise([]);
@@ -382,6 +409,16 @@ export function useExercises(): UseExercisesReturn {
 
       const updated = normalizeWorkoutExerciseRow(data as WorkoutExerciseRow);
 
+      if (updated.equipment_id) {
+        try {
+          await incrementEquipmentCount(updated.equipment_id);
+        } catch (releaseError) {
+          const message = releaseError instanceof Error ? releaseError.message : 'Failed to release equipment';
+          setError(message);
+          setLoading(false);
+          throw new Error(message);
+        }
+      }
 
       if (activeExercise?.id === workoutExerciseId) {
         setActiveExercise(null);
@@ -562,6 +599,19 @@ export function useExercises(): UseExercisesReturn {
       setLoading(true);
       setError(null);
 
+      const { data: existingRow, error: fetchError } = await supabase
+        .from('workout_exercises')
+        .select('id, equipment_id, ended_at')
+        .eq('id', Number(workoutExerciseId))
+        .single();
+
+      if (fetchError || !existingRow) {
+        const message = fetchError?.message ?? 'Exercise not found';
+        setError(message);
+        setLoading(false);
+        throw new Error(message);
+      }
+
       const { error: deleteError } = await supabase
         .from('workout_exercises')
         .delete()
@@ -572,6 +622,17 @@ export function useExercises(): UseExercisesReturn {
         setError(message);
         setLoading(false);
         throw new Error(message);
+      }
+
+      if (existingRow.equipment_id && existingRow.ended_at === null) {
+        try {
+          await incrementEquipmentCount(existingRow.equipment_id);
+        } catch (releaseError) {
+          const message = releaseError instanceof Error ? releaseError.message : 'Failed to release equipment';
+          setError(message);
+          setLoading(false);
+          throw new Error(message);
+        }
       }
 
       // Clear local active-exercise state if we just deleted the active one.
