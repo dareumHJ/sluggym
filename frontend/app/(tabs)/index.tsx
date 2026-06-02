@@ -11,7 +11,8 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { busiestHourlyWindow } from '../../src/lib/headcountHistory';
 import { useHeadcountHistory } from '../../src/hooks/useHeadcountHistory';
 import { useLiveOccupancy } from '../../src/hooks/useLiveOccupancy';
-import { HOURLY, WEEKLY_CONGESTION } from '../../src/data/mock';
+import { HOURLY } from '../../src/data/mock';
+import { useWeeklyCongestion } from '../../src/hooks/useWeeklyCongestion';
 import { useRoutineRecommendations } from '../../src/hooks/useRoutineRecommendations';
 
 
@@ -42,6 +43,7 @@ export default function HomeScreen() {
   const occupancyCapacity = 150;
   const popularTimesData = headcountHistory.empty ? HOURLY : headcountHistory.popularTimes;
   const busiestHour = busiestHourlyWindow(headcountHistory.buckets);
+  const { data: congestionData, loading: congestionLoading, error: congestionError, refresh: refreshCongestion } = useWeeklyCongestion('UCSC Gym');
 
   return (
       <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ paddingBottom: 120 }}>
@@ -145,7 +147,18 @@ export default function HomeScreen() {
       </AnimatedSection>
 
       <AnimatedSection delay={200} style={{ paddingHorizontal: Space.lg, marginBottom: Space.lg }}>
-        <WeeklyCongestionHeatmap data={[...WEEKLY_CONGESTION]} />
+        {congestionLoading ? (
+          <View style={{ alignItems: 'center', gap: Space.sm, marginBottom: Space.sm }}>
+            <ActivityIndicator color={t.primary} />
+            <Text style={{ color: t.textSecondary, fontSize: Size.sm }}>Loading weekly congestion…</Text>
+          </View>
+        ) : null}
+        {congestionError ? (
+          <Text style={{ color: t.warning, fontSize: Size.xs, marginBottom: Space.sm, textAlign: 'center' }}>
+            {congestionError}
+          </Text>
+        ) : null}
+        <WeeklyCongestionHeatmap data={congestionData} />
       </AnimatedSection>
     </ScrollView>
   );
