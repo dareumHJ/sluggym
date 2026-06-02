@@ -35,6 +35,15 @@ jest.mock('../src/hooks/useWorkouts', () => ({
   useWorkouts: jest.fn(),
 }));
 
+jest.mock('../src/hooks/useWeeklyCongestion', () => ({
+  useWeeklyCongestion: jest.fn(() => ({
+    data: [],
+    loading: false,
+    error: null,
+    refresh: jest.fn(async () => undefined),
+  })),
+}));
+
 jest.mock('../src/hooks/useRoutineRecommendations', () => ({
   useRoutineRecommendations: () => ({
     recommendations: [],
