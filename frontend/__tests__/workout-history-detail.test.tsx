@@ -98,7 +98,7 @@ describe('WorkoutHistoryDetailScreen', () => {
     expect(screen.getByText('Exercise #12')).toBeTruthy();
     expect(screen.getByText('Equipment #88')).toBeTruthy();
     expect(screen.getByText('Set 1')).toBeTruthy();
-    expect(screen.getByText('80 kg × 8 reps')).toBeTruthy();
+    expect(screen.getByText('80 kg x 8 reps')).toBeTruthy();
     expect(screen.getByText('Completed')).toBeTruthy();
   });
 
