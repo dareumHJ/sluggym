@@ -181,7 +181,30 @@ export function EquipmentAvailabilityMap() {
           {floorSummaryLabel(floorZones)}
         </Text>
 
-        <View style={{ position: 'relative', height: 420, borderRadius: Radius.xl, backgroundColor: t.bg, borderWidth: 2, borderColor: t.text, overflow: 'hidden' }}>
+        <View style={{ gap: Space.sm }}>
+          {floorLegend(floorZones).map((zone) => {
+            const palette = statusPalette(zone.status, zone.color);
+            return (
+              <Pressable
+                key={zone.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${zone.name} equipment popup`}
+                onPress={() => setSelectedZoneId(zone.id)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}
+              >
+                <View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: withAlpha(zone.color, 0.22), borderWidth: 1, borderColor: withAlpha(zone.color, 0.85), alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: zone.color, fontSize: Size.xs, fontWeight: '900' }}>{zone.zoneNumber}</Text>
+                </View>
+                <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800', flex: 1 }}>{zone.name}</Text>
+                <Text style={{ color: zone.totalCount === 0 ? t.textMuted : palette.text, fontSize: Size.xs, fontWeight: '800' }}>
+                  {zone.totalCount === 0 ? 'No data' : `${zone.availableCount}/${zone.totalCount} · ${palette.label}`}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={{ position: 'relative', height: 420, borderRadius: Radius.xl, backgroundColor: t.bg, borderWidth: 1, borderColor: t.borderLight, overflow: 'hidden' }}>
           {floorZones.map((zone) => {
             return zone.areas.map((area, index) => (
               <Pressable
@@ -195,42 +218,23 @@ export function EquipmentAvailabilityMap() {
                   top: `${area.top}%`,
                   width: `${area.width}%`,
                   height: `${area.height}%`,
-                  borderRadius: 2,
-                  backgroundColor: zone.color,
-                  borderWidth: 1,
-                  borderColor: withAlpha('#111111', 0.55),
+                  borderRadius: Radius.md,
+                  backgroundColor: withAlpha(zone.color, 0.72),
+                  borderWidth: 1.5,
+                  borderColor: withAlpha(zone.color, 0.96),
+                  shadowColor: zone.color,
+                  shadowOpacity: 0.16,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 3 },
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <View style={{ width: 38, height: 38, borderRadius: 19, borderWidth: 3, borderColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', backgroundColor: withAlpha(zone.color, 0.82) }}>
-                  <Text style={{ color: '#FFFFFF', fontSize: Size['2xl'], fontWeight: '900', lineHeight: 28 }}>{zone.zoneNumber}</Text>
+                <View style={{ minWidth: 24, height: 24, paddingHorizontal: 7, borderRadius: 12, backgroundColor: withAlpha('#000000', 0.28), borderWidth: 1, borderColor: withAlpha('#FFFFFF', 0.42), alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#FFFFFF', fontSize: Size.xs, fontWeight: '900', lineHeight: 14 }}>{zone.zoneNumber}</Text>
                 </View>
               </Pressable>
             ));
-          })}
-        </View>
-
-        <View style={{ gap: Space.sm }}>
-          {floorLegend(floorZones).map((zone) => {
-            const palette = statusPalette(zone.status, zone.color);
-            return (
-              <Pressable
-                key={zone.id}
-                accessibilityRole="button"
-                accessibilityLabel={`Open ${zone.name} equipment popup`}
-                onPress={() => setSelectedZoneId(zone.id)}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}
-              >
-                <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: zone.color, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ color: '#FFFFFF', fontSize: Size.sm, fontWeight: '900' }}>{zone.zoneNumber}</Text>
-                </View>
-                <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '800', flex: 1 }}>{zone.name}</Text>
-                <Text style={{ color: zone.totalCount === 0 ? t.textMuted : palette.text, fontSize: Size.xs, fontWeight: '800' }}>
-                  {zone.totalCount === 0 ? 'No data' : `${zone.availableCount}/${zone.totalCount} · ${palette.label}`}
-                </Text>
-              </Pressable>
-            );
           })}
         </View>
       </Card>

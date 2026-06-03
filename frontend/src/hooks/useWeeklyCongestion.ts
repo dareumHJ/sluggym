@@ -9,8 +9,14 @@ interface UseWeeklyCongestionReturn {
   refresh: () => Promise<void>;
 }
 
+type HeadcountHistorySample = {
+  count: number;
+  sampled_at: string;
+};
+
 const DEFAULT_DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DEFAULT_HOUR_ORDER = ['6a', '9a', '12p', '3p', '6p', '9p'];
+const HISTORY_PAGE_SIZE = 1000;
 
 // Capacity Warning: Neither gym_headcount_history nor gyms table has a capacity column.
 // Defaulting capacity to 150 as defined in the frontend stats/home screens.
@@ -24,6 +30,17 @@ function getHourLabel(hour: number): string | null {
   if (hour >= 18 && hour < 21) return '6p';
   if (hour >= 21 && hour < 24) return '9p';
   return null;
+}
+
+async function fetchHeadcountHistoryPage(gymId: string, startDate: string, endDate: string, from: number, to: number) {
+  return supabase
+    .from('gym_headcount_history')
+    .select('count, sampled_at')
+    .eq('gym_id', gymId)
+    .gte('sampled_at', startDate)
+    .lte('sampled_at', endDate)
+    .order('sampled_at', { ascending: true })
+    .range(from, to);
 }
 
 export function useWeeklyCongestion(locationName: string, dateRangeDays = 30): UseWeeklyCongestionReturn {
@@ -70,14 +87,20 @@ export function useWeeklyCongestion(locationName: string, dateRangeDays = 30): U
       const endDate = new Date().toISOString();
       const startDate = new Date(Date.now() - dateRangeDays * 24 * 60 * 60 * 1000).toISOString();
 
-      const { data: historyData, error: historyError } = await supabase
-        .from('gym_headcount_history')
-        .select('count, sampled_at')
-        .eq('gym_id', gymId)
-        .gte('sampled_at', startDate)
-        .lte('sampled_at', endDate);
+      const historyData: HeadcountHistorySample[] = [];
+      for (let from = 0; ; from += HISTORY_PAGE_SIZE) {
+        const { data: pageData, error: historyError } = await fetchHeadcountHistoryPage(
+          gymId,
+          startDate,
+          endDate,
+          from,
+          from + HISTORY_PAGE_SIZE - 1,
+        );
 
-      if (historyError) throw historyError;
+        if (historyError) throw historyError;
+        historyData.push(...((pageData ?? []) as HeadcountHistorySample[]));
+        if (!pageData || pageData.length < HISTORY_PAGE_SIZE) break;
+      }
 
       // 3. Setup bucket groups
       const buckets: Record<string, number[]> = {};

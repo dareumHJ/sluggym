@@ -11,7 +11,7 @@ export type WeeklyCongestionCell = {
 
 const DEFAULT_DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DEFAULT_HOUR_ORDER = ['6a', '9a', '12p', '3p', '6p', '9p'];
-const DAY_LABEL_WIDTH = 32;
+const ROW_LABEL_WIDTH = 32;
 const CELL_HEIGHT = 24;
 
 function clamp(value: number) {
@@ -37,8 +37,8 @@ export function WeeklyCongestionHeatmap({
   data: WeeklyCongestionCell[];
 }) {
   const t = useTheme();
-  const days = DEFAULT_DAY_ORDER.filter((day) => data.some((cell) => cell.day === day));
-  const hours = DEFAULT_HOUR_ORDER.filter((hour) => data.some((cell) => cell.hourLabel === hour));
+  const days = DEFAULT_DAY_ORDER;
+  const hours = DEFAULT_HOUR_ORDER;
   const enoughData = hasEnoughData(data);
 
   return (
@@ -56,22 +56,22 @@ export function WeeklyCongestionHeatmap({
 
         <View style={{ gap: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2 }}>
-            <View style={{ width: DAY_LABEL_WIDTH }} />
-            {hours.map((hour) => (
+            <View style={{ width: ROW_LABEL_WIDTH }} />
+            {days.map((day) => (
               <Text
-                key={hour}
+                key={day}
                 style={{ color: t.textSecondary, flex: 1, fontSize: Size.xs, fontWeight: '700', textAlign: 'center' }}
               >
-                {hour}
+                {day}
               </Text>
             ))}
           </View>
-          {days.map((day) => (
-            <View key={day} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ color: t.textSecondary, fontSize: Size.xs, fontWeight: '700', width: DAY_LABEL_WIDTH }}>
-                {day}
+          {hours.map((hour) => (
+            <View key={hour} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: t.textSecondary, fontSize: Size.xs, fontWeight: '700', width: ROW_LABEL_WIDTH }}>
+                {hour}
               </Text>
-              {hours.map((hour) => {
+              {days.map((day) => {
                 const cell = data.find((entry) => entry.day === day && entry.hourLabel === hour);
                 const intensity = cell?.intensity ?? null;
                 return (

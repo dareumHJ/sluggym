@@ -28,7 +28,7 @@ describe('useWeeklyCongestion hook', () => {
         return { select: selectFn };
       }
       if (table === 'gym_headcount_history') {
-        const lteFn = jest.fn().mockResolvedValue({
+        const rangeFn = jest.fn().mockResolvedValue({
           data: [
             // Mon May 18 2026 14:30 UTC = Mon 7:30 AM PDT -> Mon 6a bucket
             { count: 15, sampled_at: '2026-05-18T14:30:00Z' },
@@ -39,6 +39,8 @@ describe('useWeeklyCongestion hook', () => {
           ],
           error: null,
         });
+        const orderFn = jest.fn().mockReturnValue({ range: rangeFn });
+        const lteFn = jest.fn().mockReturnValue({ order: orderFn });
         const gteFn = jest.fn().mockReturnValue({ lte: lteFn });
         const eqFn = jest.fn().mockReturnValue({ gte: gteFn });
         const selectFn = jest.fn().mockReturnValue({ eq: eqFn });
@@ -83,10 +85,12 @@ describe('useWeeklyCongestion hook', () => {
         return { select: selectFn };
       }
       if (table === 'gym_headcount_history') {
-        const lteFn = jest.fn().mockResolvedValue({
+        const rangeFn = jest.fn().mockResolvedValue({
           data: [], // empty table/no records
           error: null,
         });
+        const orderFn = jest.fn().mockReturnValue({ range: rangeFn });
+        const lteFn = jest.fn().mockReturnValue({ order: orderFn });
         const gteFn = jest.fn().mockReturnValue({ lte: lteFn });
         const eqFn = jest.fn().mockReturnValue({ gte: gteFn });
         const selectFn = jest.fn().mockReturnValue({ eq: eqFn });

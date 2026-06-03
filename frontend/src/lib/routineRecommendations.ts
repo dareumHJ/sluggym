@@ -8,6 +8,8 @@
 // All inputs are plain data so this module is straightforward to unit-test
 // without Supabase or React.
 
+import { GYM_CAPACITY } from './gymCapacity';
+
 export type DayLabel = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
 export type HourLabel = '6a' | '9a' | '12p' | '3p' | '6p' | '9p';
 
@@ -161,20 +163,15 @@ export function groupEquipmentSamples(
 
 /**
  * Group headcount samples by bucket_key.
- * Stores normalised "occupancy ratio" via the supplied capacity proxy
- * (the largest observed count across the window).
  */
 export function groupHeadcountSamples(
   samples: HeadcountSample[],
-): { byBucket: Map<string, HeadcountSample[]>; maxObservedCount: number } {
+): Map<string, HeadcountSample[]> {
   const byBucket = new Map<string, HeadcountSample[]>();
-  let maxObservedCount = 0;
 
   for (const sample of samples) {
     const key = bucketKeyForTimestamp(sample.sampled_at);
     if (!key) continue;
-
-    if (sample.count > maxObservedCount) maxObservedCount = sample.count;
 
     const bucketSamples = byBucket.get(key);
     if (bucketSamples) {
@@ -184,7 +181,7 @@ export function groupHeadcountSamples(
     }
   }
 
-  return { byBucket, maxObservedCount };
+  return byBucket;
 }
 
 /**
@@ -212,19 +209,19 @@ export function tier1EquipmentAvailability(
 
 /**
  * Tier 2 — gym-wide headcount used as a proxy.
- * Availability = 1 - (mean_count / max_observed_count) for the bucket.
+ * Availability = 1 - (mean_count / fixed gym capacity) for the bucket.
  * Returns null if no samples exist for this bucket.
  */
 export function tier2HeadcountAvailability(
   bucket: TimeBucket,
   byBucket: Map<string, HeadcountSample[]>,
-  maxObservedCount: number,
+  capacity = GYM_CAPACITY,
 ): number | null {
   const samples = byBucket.get(bucketKey(bucket));
-  if (!samples || samples.length === 0 || maxObservedCount === 0) return null;
+  if (!samples || samples.length === 0 || capacity <= 0) return null;
 
   const meanCount = samples.reduce((acc, s) => acc + s.count, 0) / samples.length;
-  return Math.max(0, Math.min(1, 1 - meanCount / maxObservedCount));
+  return Math.max(0, Math.min(1, 1 - meanCount / capacity));
 }
 
 /** Tier 3 — IHRSA baseline. Always defined. */
@@ -246,12 +243,12 @@ export function resolveAvailability(
   bucket: TimeBucket,
   equipmentGrouped: Map<string, Map<string, EquipmentAvailabilitySample[]>>,
   headcountByBucket: Map<string, HeadcountSample[]>,
-  maxObservedCount: number,
+  capacity = GYM_CAPACITY,
 ): ResolvedAvailability {
   const t1 = tier1EquipmentAvailability(equipmentName, bucket, equipmentGrouped);
   if (t1 !== null) return { availability: t1, tier: 'equipment' };
 
-  const t2 = tier2HeadcountAvailability(bucket, headcountByBucket, maxObservedCount);
+  const t2 = tier2HeadcountAvailability(bucket, headcountByBucket, capacity);
   if (t2 !== null) return { availability: t2, tier: 'headcount' };
 
   return { availability: tier3BaselineAvailability(bucket), tier: 'baseline' };
@@ -266,7 +263,7 @@ export function scoreRoutineBucket(
   bucket: TimeBucket,
   equipmentGrouped: Map<string, Map<string, EquipmentAvailabilitySample[]>>,
   headcountByBucket: Map<string, HeadcountSample[]>,
-  maxObservedCount: number,
+  capacity = GYM_CAPACITY,
 ): { score: number; bottleneckEquipment: string; fallbackTier: ResolvedAvailability['tier'] } {
   if (routine.equipmentNames.length === 0) {
     return { score: 0, bottleneckEquipment: '', fallbackTier: 'baseline' };
@@ -285,7 +282,7 @@ export function scoreRoutineBucket(
       bucket,
       equipmentGrouped,
       headcountByBucket,
-      maxObservedCount,
+      capacity,
     );
     sum += resolved.availability;
     if (resolved.availability < minAvail) {
@@ -311,7 +308,7 @@ export function pickBestBucketForRoutine(
   routine: RoutineInput,
   equipmentGrouped: Map<string, Map<string, EquipmentAvailabilitySample[]>>,
   headcountByBucket: Map<string, HeadcountSample[]>,
-  maxObservedCount: number,
+  capacity = GYM_CAPACITY,
 ): RoutineTimeRecommendation | null {
   if (routine.equipmentNames.length === 0) return null;
 
@@ -329,7 +326,7 @@ export function pickBestBucketForRoutine(
       bucket,
       equipmentGrouped,
       headcountByBucket,
-      maxObservedCount,
+      capacity,
     );
     if (!best || score > best.score) {
       best = { bucket, score, bottleneckEquipment, fallbackTier };
@@ -366,11 +363,11 @@ export function buildRoutineRecommendations(
   topN = 3,
 ): RoutineTimeRecommendation[] {
   const equipmentGrouped = groupEquipmentSamples(equipmentSamples);
-  const { byBucket: headcountByBucket, maxObservedCount } = groupHeadcountSamples(headcountSamples);
+  const headcountByBucket = groupHeadcountSamples(headcountSamples);
 
   const perRoutine = routines
     .filter((routine) => routine.equipmentNames.length > 0)
-    .map((routine) => pickBestBucketForRoutine(routine, equipmentGrouped, headcountByBucket, maxObservedCount))
+    .map((routine) => pickBestBucketForRoutine(routine, equipmentGrouped, headcountByBucket))
     .filter((rec): rec is RoutineTimeRecommendation => rec !== null);
 
   // Sort by score desc, then by last_used (more recent wins)

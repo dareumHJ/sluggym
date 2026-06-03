@@ -97,24 +97,24 @@ describe('tier1EquipmentAvailability', () => {
 });
 
 describe('tier2HeadcountAvailability', () => {
-  it('converts mean headcount to availability using max as capacity proxy', () => {
+  it('converts mean headcount to availability using fixed gym capacity', () => {
     const samples: HeadcountSample[] = [
       { count: 50, sampled_at: isoAt(2026, 5, 13, 10) },
-      { count: 100, sampled_at: isoAt(2026, 5, 14, 19) }, // sets the max
+      { count: 100, sampled_at: isoAt(2026, 5, 14, 19) },
     ];
-    const { byBucket, maxObservedCount } = groupHeadcountSamples(samples);
+    const byBucket = groupHeadcountSamples(samples);
     const buckets = buildBuckets();
     const wedNineAm = buckets.find((b) => b.dayIndex === dayOfWeek(2026, 5, 13) && b.hourLabel === '9a')!;
 
-    const avail = tier2HeadcountAvailability(wedNineAm, byBucket, maxObservedCount);
-    // 1 - 50/100 = 0.5
-    expect(avail).toBeCloseTo(0.5);
+    const avail = tier2HeadcountAvailability(wedNineAm, byBucket);
+    // 1 - 50/150 = 0.666...
+    expect(avail).toBeCloseTo(2 / 3);
   });
 
   it('returns null when there are no headcount samples for the bucket', () => {
-    const { byBucket, maxObservedCount } = groupHeadcountSamples([]);
+    const byBucket = groupHeadcountSamples([]);
     const buckets = buildBuckets();
-    expect(tier2HeadcountAvailability(buckets[0], byBucket, maxObservedCount)).toBeNull();
+    expect(tier2HeadcountAvailability(buckets[0], byBucket)).toBeNull();
   });
 });
 
@@ -137,7 +137,7 @@ describe('scoreRoutineBucket', () => {
       { equipment_name: 'Cable Cross', available_count: 0, total_count: 4, sampled_at: isoAt(2026, 5, 13, 10) },
     ];
     const equipmentGrouped = groupEquipmentSamples(samples);
-    const { byBucket: headcountByBucket, maxObservedCount } = groupHeadcountSamples([]);
+    const headcountByBucket = groupHeadcountSamples([]);
 
     const buckets = buildBuckets();
     const wedNineAm = buckets.find((b) => b.dayIndex === dayOfWeek(2026, 5, 13) && b.hourLabel === '9a')!;
@@ -150,7 +150,7 @@ describe('scoreRoutineBucket', () => {
       lastUsedAt: null,
     };
 
-    const result = scoreRoutineBucket(routine, wedNineAm, equipmentGrouped, headcountByBucket, maxObservedCount);
+    const result = scoreRoutineBucket(routine, wedNineAm, equipmentGrouped, headcountByBucket);
 
     // MeanAvail = (1.0 + 0.0) / 2 = 0.5
     // MinAvail  = 0.0
@@ -166,7 +166,6 @@ describe('scoreRoutineBucket', () => {
       buckets[0],
       new Map(),
       new Map(),
-      0,
     );
     expect(result.score).toBe(0);
   });
@@ -177,7 +176,7 @@ describe('scoreRoutineBucket', () => {
       { count: 10, sampled_at: isoAt(2026, 5, 13, 10) },
       { count: 100, sampled_at: isoAt(2026, 5, 14, 19) },
     ];
-    const { byBucket, maxObservedCount } = groupHeadcountSamples(headcountSamples);
+    const byBucket = groupHeadcountSamples(headcountSamples);
 
     const buckets = buildBuckets();
     const wedNineAm = buckets.find((b) => b.dayIndex === dayOfWeek(2026, 5, 13) && b.hourLabel === '9a')!;
@@ -193,12 +192,11 @@ describe('scoreRoutineBucket', () => {
       wedNineAm,
       new Map(),
       byBucket,
-      maxObservedCount,
     );
 
     expect(result.fallbackTier).toBe('headcount');
-    // 1 - 10/100 = 0.9 mean, min same since one equipment, score = 0.9 * (0.5 + 0.5*0.9) = 0.9*0.95 = 0.855
-    expect(result.score).toBeCloseTo(0.855);
+    // 1 - 10/150 = 0.933... mean, min same since one equipment.
+    expect(result.score).toBeCloseTo(0.9022);
   });
 
   it('falls through to IHRSA baseline when there is no historical data at all', () => {
@@ -216,7 +214,6 @@ describe('scoreRoutineBucket', () => {
       sixAm,
       new Map(),
       new Map(),
-      0,
     );
 
     expect(result.fallbackTier).toBe('baseline');

@@ -136,8 +136,6 @@ export function OptimalTimeRecommendation({
                       gap: Space.xs,
                     }}
                   >
-                    {/* Routine label — small caps at the top so the user can tell
-                        which routine this chip belongs to. */}
                     <Text
                       style={{
                         color: active ? t.primary : t.textSecondary,

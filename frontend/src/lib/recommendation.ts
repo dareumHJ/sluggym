@@ -1,3 +1,5 @@
+import { GYM_CAPACITY } from './gymCapacity';
+
 export type RoutineEquipmentNeed = {
   routineId: string;
   routineName: string;
@@ -45,7 +47,7 @@ const DEFAULT_HOUR_ORDER = ['6a', '9a', '12p', '3p', '6p', '9p'];
 const DAYS_JS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // Standard capacity fallback value
-const DEFAULT_CAPACITY = 150;
+const DEFAULT_CAPACITY = GYM_CAPACITY;
 
 // IHRSA (International Health, Racquet & Sportsclub Association) peak and off-peak hour patterns
 // representing the baseline commercial fitness center occupancy profile.
@@ -150,7 +152,7 @@ export function getOptimalTimesForRoutine(
     const hourLabel = getHourLabel(parsed.hour);
     if (!hourLabel) continue;
 
-    const capacity = s.capacity ?? DEFAULT_CAPACITY;
+    const capacity = DEFAULT_CAPACITY;
     if (capacity <= 0) continue;
 
     const key = `${parsed.day}|${hourLabel}`;

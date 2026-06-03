@@ -22,8 +22,9 @@ function mockHook(overrides: Partial<ReturnType<typeof useEquipmentMap>> = {}) {
       { id: '2', name: 'Bench Press', category: 'Free Weights', location: '1st floor', quantity: 0, description: 'Flat bench press setup' },
       { id: '4', name: 'Leg Press', category: 'Plate Loaded', location: '1st floor', quantity: 1, description: 'Plate-loaded lower-body station' },
       { id: '3', name: 'Treadmill 1', category: 'Cardio', location: '2nd floor', quantity: 2, description: 'Cardio line' },
+      { id: '5', name: 'Plyometric Box', category: 'Functional', location: '2nd floor', quantity: 1, description: 'Functional training station' },
     ],
-    statuses: { '1': 'free', '2': 'occupied', '3': 'free' },
+    statuses: { '1': 'free', '2': 'occupied', '3': 'free', '5': 'free' },
     globalState: 'ready',
     refresh: jest.fn(async () => undefined),
     ...overrides,
@@ -101,6 +102,7 @@ describe('EquipmentAvailabilityMap', () => {
 
     fireEvent.press(screen.getByText('2nd floor'));
     expect(screen.getByText('Cardio Zone')).toBeTruthy();
-    expect(screen.queryByText('Functional Area')).toBeNull();
+    expect(screen.getByText('Functional Area')).toBeTruthy();
+    expect(screen.getAllByText('7').length).toBeGreaterThan(0);
   });
 });

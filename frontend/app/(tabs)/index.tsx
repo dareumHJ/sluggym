@@ -8,13 +8,88 @@ import { AnimatedSection } from '../../src/components/AnimatedSection';
 import { OptimalTimeRecommendation } from '../../src/components/OptimalTimeRecommendation';
 import { WeeklyCongestionHeatmap } from '../../src/components/WeeklyCongestionHeatmap';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { busiestHourlyWindow } from '../../src/lib/headcountHistory';
+import { GYM_CAPACITY } from '../../src/lib/gymCapacity';
+import { busiestHourlyWindow, getGymLocalHour } from '../../src/lib/headcountHistory';
 import { useHeadcountHistory } from '../../src/hooks/useHeadcountHistory';
 import { useLiveOccupancy } from '../../src/hooks/useLiveOccupancy';
 import { HOURLY } from '../../src/data/mock';
 import { useWeeklyCongestion } from '../../src/hooks/useWeeklyCongestion';
 import { useRoutineRecommendations } from '../../src/hooks/useRoutineRecommendations';
 
+const WEEKDAY_TO_SHORT: Record<string, string> = {
+  Sunday: 'Sun',
+  Monday: 'Mon',
+  Tuesday: 'Tue',
+  Wednesday: 'Wed',
+  Thursday: 'Thu',
+  Friday: 'Fri',
+  Saturday: 'Sat',
+};
+
+const HEATMAP_HOUR_STARTS: Record<string, number> = {
+  '6a': 6,
+  '9a': 9,
+  '12p': 12,
+  '3p': 15,
+  '6p': 18,
+  '9p': 21,
+};
+
+function backfillPopularTimesFromCongestion({
+  base,
+  buckets,
+  congestionData,
+  fallback,
+  weekdayName,
+}: {
+  base: number[];
+  buckets: ReturnType<typeof useHeadcountHistory>['buckets'];
+  congestionData: ReturnType<typeof useWeeklyCongestion>['data'];
+  fallback: number[];
+  weekdayName: string;
+}) {
+  const filled = [...base];
+  const day = WEEKDAY_TO_SHORT[weekdayName];
+  if (!day) return filled;
+
+  for (const cell of congestionData) {
+    if (cell.day !== day || cell.intensity === null) continue;
+
+    const startHour = HEATMAP_HOUR_STARTS[cell.hourLabel];
+    if (startHour === undefined) continue;
+
+    const estimatedCount = Math.round((cell.intensity / 100) * GYM_CAPACITY);
+    for (let hour = startHour; hour < startHour + 3 && hour < filled.length; hour += 1) {
+      const currentCount = filled[hour] ?? 0;
+      if (buckets[hour]?.sampleCount === 0 || estimatedCount > currentCount) {
+        filled[hour] = estimatedCount;
+      }
+    }
+  }
+
+  for (let hour = 6; hour < Math.min(filled.length, 24); hour += 1) {
+    if ((filled[hour] ?? 0) <= 0) {
+      filled[hour] = fallback[hour] ?? 0;
+    }
+  }
+
+  return filled;
+}
+
+function busiestHourFromPopularTimes(popularTimes: number[]) {
+  let bestHour: number | null = null;
+  let bestCount = -1;
+
+  for (let hour = 6; hour < Math.min(popularTimes.length, 24); hour += 1) {
+    const count = popularTimes[hour] ?? 0;
+    if (count > bestCount) {
+      bestCount = count;
+      bestHour = hour;
+    }
+  }
+
+  return bestCount > 0 ? bestHour : null;
+}
 
 function formatTimestamp(timestamp?: string | null) {
   if (!timestamp) return 'Waiting for a live update';
@@ -39,11 +114,20 @@ export default function HomeScreen() {
   } = useRoutineRecommendations();
   const displayName = user?.name ?? user?.email?.split('@')[0] ?? 'Athlete';
   const firstName = displayName.split(' ')[0];
-  const hour = new Date().getHours();
-  const occupancyCapacity = 150;
-  const popularTimesData = headcountHistory.empty ? HOURLY : headcountHistory.popularTimes;
-  const busiestHour = busiestHourlyWindow(headcountHistory.buckets);
-  const { data: congestionData, loading: congestionLoading, error: congestionError, refresh: refreshCongestion } = useWeeklyCongestion('405 E Field Service Rd, Santa Cruz, CA 95064 미국');
+  const hour = getGymLocalHour(new Date());
+  const occupancyCapacity = GYM_CAPACITY;
+  const { data: congestionData, loading: congestionLoading, error: congestionError } = useWeeklyCongestion('405 E Field Service Rd, Santa Cruz, CA 95064 미국');
+  const basePopularTimesData = headcountHistory.empty ? HOURLY : headcountHistory.popularTimes;
+  const popularTimesData = backfillPopularTimesFromCongestion({
+    base: basePopularTimesData,
+    buckets: headcountHistory.buckets,
+    congestionData,
+    fallback: HOURLY,
+    weekdayName: headcountHistory.weekdayName,
+  });
+  const busiestHour = headcountHistory.empty
+    ? busiestHourlyWindow(headcountHistory.buckets)
+    : busiestHourFromPopularTimes(popularTimesData);
 
   return (
       <ScrollView style={{ flex: 1, backgroundColor: t.bg }} contentContainerStyle={{ paddingBottom: 120 }}>
@@ -138,11 +222,14 @@ export default function HomeScreen() {
             Not enough historical samples yet; showing safe fallback trends.
           </Text>
         ) : null}
+        <Text style={{ color: t.textSecondary, fontSize: Size.sm, fontWeight: '800', marginBottom: Space.sm, textAlign: 'center' }}>
+          <Text style={{ color: t.primary }}>{headcountHistory.weekdayName}</Text> Average Headcount
+        </Text>
         <PopularTimes data={popularTimesData} currentHour={hour} />
         <Text style={{ color: t.textMuted, fontSize: Size.xs, marginTop: Space.md, textAlign: 'center' }}>
           {headcountHistory.empty || busiestHour === null
             ? 'Typically busy between 5–7pm'
-            : `Busiest recent hour: ${busiestHour}:00`}
+            : `Busiest hour: ${busiestHour}:00`}
         </Text>
       </AnimatedSection>
 

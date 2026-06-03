@@ -86,7 +86,7 @@ describe('Equipment map tab', () => {
       equipment: [
         { id: 'cable-1', name: 'Cable Row', category: 'Cables', location: '2nd floor', quantity: 0, description: null },
         { id: 'treadmill-1', name: 'Treadmill', category: 'Cardio', location: '2nd floor', quantity: 2, description: null },
-        { id: 'machine-1', name: 'Leg Extension', category: 'Machines', location: '2nd floor', quantity: 1, description: null },
+        { id: 'machine-1', name: 'Leg Extension', category: 'Selectorized Machine', location: '2nd floor', quantity: 1, description: null },
         { id: 'box-1', name: 'Plyometric Box', category: 'Functional', location: '2nd floor', quantity: 1, description: null },
       ],
       statuses: { 'cable-1': 'occupied', 'treadmill-1': 'free', 'machine-1': 'free', 'box-1': 'free' },
@@ -98,8 +98,11 @@ describe('Equipment map tab', () => {
     expect(screen.getAllByText('Cable Zone').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cardio Zone').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Machine Zone').length).toBeGreaterThan(0);
-    expect(screen.queryByText('Functional Area')).toBeNull();
-    expect(screen.queryByText('4')).toBeNull();
+    expect(screen.getAllByText('Functional Area').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('4').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('5').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('6').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('7').length).toBeGreaterThan(0);
   });
 
   it('keeps the loading state available in the dedicated tab', () => {

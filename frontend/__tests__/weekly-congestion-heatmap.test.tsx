@@ -8,6 +8,8 @@ describe('WeeklyCongestionHeatmap', () => {
     render(<WeeklyCongestionHeatmap data={[...WEEKLY_CONGESTION]} />);
 
     expect(screen.getByText('Weekly Congestion Heatmap')).toBeTruthy();
+    expect(screen.getByText('Mon')).toBeTruthy();
+    expect(screen.getByText('6a')).toBeTruthy();
     expect(screen.getByText('Quiet')).toBeTruthy();
     expect(screen.getByText('Busy')).toBeTruthy();
   });
@@ -16,5 +18,7 @@ describe('WeeklyCongestionHeatmap', () => {
     render(<WeeklyCongestionHeatmap data={[...SPARSE_WEEKLY_CONGESTION]} />);
 
     expect(screen.getByText('Not enough weekly traffic data yet')).toBeTruthy();
+    expect(screen.getByText('Sun')).toBeTruthy();
+    expect(screen.getByText('9p')).toBeTruthy();
   });
 });

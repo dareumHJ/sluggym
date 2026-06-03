@@ -68,12 +68,11 @@ export const EQUIPMENT_MAP_ZONES: EquipmentMapZoneDefinition[] = [
     id: 'cable-zone',
     name: 'Cable Zone',
     floor: '2nd floor',
-    zoneNumber: 1,
+    zoneNumber: 4,
     color: '#4778C7',
     areas: [
-      { left: 4, top: 4, width: 10, height: 19 },
-      { left: 4, top: 4, width: 58, height: 6 },
-      { left: 75, top: 49, width: 27, height: 21 },
+      { left: 5, top: 5, width: 56, height: 16 },
+      { left: 76, top: 50, width: 22, height: 19 },
     ],
     matchers: { names: ['cable', 'pulldown', 'row'], categories: ['cables'] },
   },
@@ -81,11 +80,11 @@ export const EQUIPMENT_MAP_ZONES: EquipmentMapZoneDefinition[] = [
     id: 'cardio-zone',
     name: 'Cardio Zone',
     floor: '2nd floor',
-    zoneNumber: 2,
+    zoneNumber: 5,
     color: '#FFC20A',
     areas: [
-      { left: 4, top: 29, width: 18, height: 38 },
-      { left: 37, top: 49, width: 27, height: 21 },
+      { left: 5, top: 31, width: 17, height: 35 },
+      { left: 38, top: 50, width: 25, height: 19 },
     ],
     matchers: { names: ['elliptical', 'motion trainer', 'rowing', 'stair', 'treadmill', 'bike', 'cycle'], categories: ['cardio'] },
   },
@@ -93,13 +92,28 @@ export const EQUIPMENT_MAP_ZONES: EquipmentMapZoneDefinition[] = [
     id: 'machine-zone',
     name: 'Machine Zone',
     floor: '2nd floor',
-    zoneNumber: 3,
+    zoneNumber: 6,
     color: '#05B65A',
     areas: [
-      { left: 37, top: 23, width: 27, height: 19 },
-      { left: 4, top: 78, width: 42, height: 21 },
+      { left: 38, top: 27, width: 25, height: 17 },
+      { left: 5, top: 79, width: 40, height: 19 },
     ],
-    matchers: { categories: ['machines'] },
+    matchers: { categories: ['selectorized machine', 'machine', 'machines'] },
+  },
+  {
+    id: 'functional-area-zone',
+    name: 'Functional Area',
+    floor: '2nd floor',
+    zoneNumber: 7,
+    color: '#7C3AED',
+    areas: [
+      { left: 82, top: 5, width: 17, height: 23 },
+      { left: 57, top: 79, width: 40, height: 19 },
+    ],
+    matchers: {
+      names: ['plyometric', 'box', 'battle rope', 'medicine ball', 'mat', 'trx', 'functional'],
+      categories: ['functional'],
+    },
   },
 ];
 
@@ -110,8 +124,11 @@ function normalize(value: string | null | undefined) {
 function matchesZone(definition: EquipmentMapZoneDefinition, equipment: EquipmentListItem) {
   const normalizedName = normalize(equipment.name);
   const normalizedCategory = normalize(equipment.category);
+  const normalizedLocation = normalize(equipment.location);
   const names = definition.matchers.names ?? [];
   const categories = definition.matchers.categories ?? [];
+
+  if (normalizedLocation && normalizedLocation !== normalize(definition.floor)) return false;
 
   return names.some((name) => normalizedName.includes(normalize(name))) || categories.some((category) => normalizedCategory.includes(normalize(category)));
 }
