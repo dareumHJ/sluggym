@@ -113,10 +113,6 @@ This section maps the overlying user stories completed in this release to their 
 
 Below is a summary of major omissions, design shortcuts, and fallback behaviors currently residing in the codebase:
 
-### Omissions & Missing Features
-1. **Removal of General "Go Now" Recommendation**:
-   * The overall "Right Now, whether to go" recommendation card was removed from the Home screen. The Home tab now focuses entirely on displaying the live headcount occupancy status (`Open`, `Moderate`, `Busy` based on a `150` capacity limit), leaving the personalized routine-specific suggestions as the primary recommendation engine.
-
 ### Design Shortcuts & Hardcoded Fallbacks
 1. **Catalog Row Limits**:
    * The catalog list query in `useExerciseCatalog.ts` is capped at a hard limit of `500` rows, meaning very large catalogs could truncate exercises.
