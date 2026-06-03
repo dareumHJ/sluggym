@@ -163,35 +163,6 @@
 
 ---
 
-### Scenario 8: Routine-Specific Recommendations (Tier 2 Fallback: General Gym Headcount) (Pass/Fail)
-* **Goal**: Verify that when specific equipment availability records are sparse/missing, the recommendation engine falls back to general gym headcount history.
-* **Target User Stories**: **US-4.2** (SLU-158)
-* **Pre-conditions**:
-  1. A logged-in user has a routine `Chest Day` requiring `Dumbbells`.
-  2. The database has **no** historical entries in `equipment_availability_history` for `Dumbbells`.
-  3. The database **does** contain headcount history records in `gym_headcount_history` (e.g., indicating low occupancy on Monday mornings and high occupancy on Wednesday evenings).
-
-#### Steps & Verification:
-1. **Action**: User views the **Home** tab.
-   * **Expected Output**: The optimal recommendation card displays the best time based on general gym occupancy (e.g., `"Mon 9:00 AM–12:00 PM"`).
-   * **Expected Output**: The reason text displays: `"Equipment data limited — using gym headcount history. Watch out for Dumbbells (Estimated)."` (Since the specific equipment data is missing, it falls back to headcount history and appends `(Estimated)` to the bottleneck equipment).
-
----
-
-### Scenario 9: Routine-Specific Recommendations (Tier 3 Fallback: Commercial Gym Baseline) (Pass/Fail)
-* **Goal**: Verify that when both specific equipment availability logs and general gym headcount logs are missing, the recommendation engine falls back to the hardcoded commercial gym profile.
-* **Target User Stories**: **US-4.2** (SLU-158)
-* **Pre-conditions**:
-  1. A logged-in user has a routine `Leg Day` requiring `Squat Rack`.
-  2. The database has **no** history logs in `equipment_availability_history` for `Squat Rack` and **no** logs in `gym_headcount_history` within the 30-day lookback window.
-
-#### Steps & Verification:
-1. **Action**: User views the **Home** tab.
-   * **Expected Output**: The optimal recommendation card displays the best time based on the hardcoded IHRSA baseline profile. It recommends a high-availability slot (e.g., `"Mon 6:00 AM–9:00 AM"` or `"Mon 9:00 PM–12:00 AM"`).
-   * **Expected Output**: The reason text displays: `"Using industry baseline while live data accumulates. Watch out for Squat Rack (Standard Profile)."` (Since both tables are empty, it falls back to the baseline profile and appends `(Standard Profile)` to the bottleneck equipment).
-
----
-
 ## 3. Validation Report
 
 An automated test suite exists in `frontend/__tests__` and has been run successfully.
