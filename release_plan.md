@@ -125,6 +125,9 @@ Below is a summary of major omissions, design shortcuts, and fallback behaviors 
 5. **Timezone Normalization**:
    * The hourly headcount history aggregator, the weekly congestion heatmap, and the optimal recommendation scoring engine all normalize date-parsing using the `America/Los_Angeles` timezone (the local time of UC Santa Cruz gyms) to ensure consistent binned results regardless of the user's local device/emulator timezone settings.
 
+### Known Issues
+1. **Gym Headcount API Availability**
+   * The gym headcount API sometimes returns invalid reponses to requests, rendering a 0 in the gym headcount in the home tab of the application.
 ---
 
 ## 3. Product Backlog for Follow-On Project
