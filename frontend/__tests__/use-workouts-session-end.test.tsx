@@ -133,11 +133,10 @@ describe('useWorkouts session end flow', () => {
     expect(workoutEnd.select).toHaveBeenCalledWith('id, user_id, name, target_muscle, routine_id, started_at, ended_at, created_at');
     expect(updatedWorkout).toMatchObject({ id: 'workout-1', ended_at: endedAt, duration_min: 30 });
 
-    expect(rpcMock).toHaveBeenCalledWith('increment_equipment_count', { equipment_id_input: 1 });
-    expect(rpcMock).toHaveBeenCalledWith('increment_equipment_count', { equipment_id_input: 2 });
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 
-  it('does not end the workout when releasing an active exercise fails', async () => {
+  it('does not end the workout when ending an active exercise fails', async () => {
     queueInitialWorkoutRefresh();
     queueActiveExerciseFetch([{ id: 'workout-exercise-1', equipment_id: '1' }]);
     queueActiveExerciseEnd({ message: 'release failed' });
@@ -231,7 +230,7 @@ describe('useExercises.deleteExercise', () => {
     rpcMock.mockResolvedValue({ error: null });
   });
 
-  it('reserves equipment when an exercise starts', async () => {
+  it('creates the workout_exercises row when an exercise starts', async () => {
     queueExistingActiveExerciseCheck();
     const insert = queueWorkoutExerciseInsert();
 
@@ -253,11 +252,11 @@ describe('useExercises.deleteExercise', () => {
       order_index: 1,
       started_at: expect.any(String),
     });
-    expect(rpcMock).toHaveBeenCalledWith('decrement_equipment_count', { equipment_id_input: 7 });
+    expect(rpcMock).not.toHaveBeenCalled();
     expect(result.current.activeExercise).toMatchObject({ id: '42', equipment_id: '7' });
   });
 
-  it('releases equipment when an exercise finishes', async () => {
+  it('marks the workout_exercises row ended when an exercise finishes', async () => {
     const update = queueWorkoutExerciseEnd();
 
     const { result } = renderHook(() => useExercises());
@@ -268,7 +267,7 @@ describe('useExercises.deleteExercise', () => {
 
     expect(update.update).toHaveBeenCalledWith({ ended_at: expect.any(String) });
     expect(update.eq).toHaveBeenCalledWith('id', 42);
-    expect(rpcMock).toHaveBeenCalledWith('increment_equipment_count', { equipment_id_input: 7 });
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 
   it('deletes the workout_exercises row by id', async () => {
@@ -284,7 +283,7 @@ describe('useExercises.deleteExercise', () => {
     expect(fromMock).toHaveBeenCalledWith('workout_exercises');
     expect(exerciseDelete.delete).toHaveBeenCalledTimes(1);
     expect(exerciseDelete.eq).toHaveBeenCalledWith('id', 42);
-    expect(rpcMock).toHaveBeenCalledWith('increment_equipment_count', { equipment_id_input: 7 });
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 
   it('throws and exposes an error when the database delete fails', async () => {

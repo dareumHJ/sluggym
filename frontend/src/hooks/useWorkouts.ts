@@ -97,15 +97,6 @@ function normalizeWorkoutRow(row: WorkoutRow): Workout {
   };
 }
 
-async function incrementEquipmentCount(equipmentId: string | number) {
-  const { error } = await supabase.rpc('increment_equipment_count', {
-    equipment_id_input: Number(equipmentId),
-  });
-  if (error) {
-    throw new Error(error.message ?? 'Failed to release equipment');
-  }
-}
-
 /**
  * Hook for managing workout sessions for the current authenticated user.
  *
@@ -230,8 +221,8 @@ export function useWorkouts(): UseWorkoutsReturn {
    * End an active workout by setting its ended_at timestamp to now.
    *
    * If any exercises in this workout are still active (have null ended_at),
-   * they are automatically ended first and their equipment counts are
-   * incremented back. This handles the common UX case where a user ends
+   * they are automatically ended first. Database triggers release equipment
+   * as those rows are closed. This handles the common UX case where a user ends
    * a workout while still mid-exercise — the equipment is properly released
    * even though the user didn't explicitly end the exercise first.
    *
@@ -251,7 +242,7 @@ export function useWorkouts(): UseWorkoutsReturn {
       throw new Error(`Failed to check for active exercises: ${fetchActiveError.message}`);
     }
 
-    // Cascade-end each active exercise and increment its equipment count back
+    // Cascade-end each active exercise; DB triggers restore equipment counts.
     const endedAt = new Date().toISOString();
     for (const ex of activeExercises ?? []) {
       const { error: updateExError } = await supabase
@@ -263,9 +254,6 @@ export function useWorkouts(): UseWorkoutsReturn {
         throw new Error(`Failed to end active exercise ${ex.id}: ${updateExError.message}`);
       }
 
-      if (ex.equipment_id) {
-        await incrementEquipmentCount(ex.equipment_id);
-      }
     }
 
     // Now end the workout itself

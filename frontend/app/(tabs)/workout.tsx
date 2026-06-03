@@ -507,7 +507,6 @@ export default function WorkoutScreen() {
           index === exIdx ? { ...item, workoutExerciseId: persisted.id, lifecycle: 'active' } : item,
         ),
       );
-      void refreshEquipment();
     } catch (error) {
       setFormMessage(getErrorMessage(error));
     }
@@ -541,7 +540,6 @@ export default function WorkoutScreen() {
       setExercises((prev) =>
         prev.map((item, index) => (index === exIdx ? { ...item, lifecycle: 'finished' } : item)),
       );
-      void refreshEquipment();
     } catch (error) {
       setFormMessage(getErrorMessage(error));
     }

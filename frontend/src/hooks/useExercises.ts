@@ -6,14 +6,14 @@
  * real time (per the architecture decision in Sprint 2's team meeting).
  *
  * Key features:
- * - addExercise() / endExercise() with atomic gym_equipment.available_count updates
+ * - addExercise() / endExercise() through workout_exercises lifecycle rows
  * - Set logging (addSet, updateSet, deleteSet) with auto-renumbering on delete
  * - Read functions (getExercisesForWorkout, getActiveExercise) with nested sets
  * - hydrateActiveExercise() for restoring in-progress workout state on app load
  * - Enforces "one active exercise per workout" at the hook level
  *
  * Related Supabase changes (see backend/db/sprint2-policies-and-functions.sql):
- * - decrement_equipment_count and increment_equipment_count RPC functions
+ * - equipment availability triggers on workout_exercises lifecycle changes
  * - RLS policies on workout_exercises and exercise_sets restricting access to workout owner
  *
  * Note: This hook intentionally has a different API from the previous useExercises
@@ -117,9 +117,9 @@ interface UseExercisesReturn {
   loading: boolean;
   /** Error message from the most recent failed operation, or null. */
   error: string | null;
-  /** Start a new exercise; decrements equipment count. */
+  /** Start a new exercise; DB triggers reserve equipment. */
   addExercise: (input: AddExerciseInput) => Promise<WorkoutExercise>;
-  /** End an active exercise; increments equipment count. */
+  /** End an active exercise; DB triggers release equipment. */
   endExercise: (workoutExerciseId: string, equipmentId: string) => Promise<WorkoutExercise>;
   /** Add a set to an exercise. */
   addSet: (input: AddSetInput) => Promise<ExerciseSet>;
@@ -130,8 +130,7 @@ interface UseExercisesReturn {
   /**
    * Hard-delete an exercise (workout_exercises row) along with all its sets
    * via the FK cascade. If the exercise was still active (ended_at IS NULL),
-   * the DB trigger increments gym_equipment.available_count back, so the
-   * equipment is properly released.
+   * DB triggers release the equipment.
    */
   deleteExercise: (workoutExerciseId: string) => Promise<void>;
   /**
@@ -252,32 +251,12 @@ function normalizeWorkoutExerciseWithSets(row: WorkoutExerciseWithSetsRow): Work
   return { ...exercise, sets, exercise: exerciseInfo, equipment: equipmentInfo };
 }
 
-async function decrementEquipmentCount(equipmentId: string | number) {
-  const { error } = await supabase.rpc('decrement_equipment_count', {
-    equipment_id_input: Number(equipmentId),
-  });
-  if (error) {
-    throw new Error(error.message ?? 'Failed to reserve equipment');
-  }
-}
-
-async function incrementEquipmentCount(equipmentId: string | number) {
-  const { error } = await supabase.rpc('increment_equipment_count', {
-    equipment_id_input: Number(equipmentId),
-  });
-  if (error) {
-    throw new Error(error.message ?? 'Failed to release equipment');
-  }
-}
-
 /**
  * Hook for managing per-exercise lifecycle within a workout session.
  *
  * Tracks individual exercises in real time so the database always reflects
- * which equipment is currently in use. Each addExercise call decrements
- * `gym_equipment.available_count` for the corresponding equipment, and each
- * endExercise call increments it back. This enables real-time equipment
- * occupancy in the UI.
+ * which equipment is currently in use. Availability changes are handled by
+ * database triggers when workout_exercises rows start, finish, or delete.
  *
  * Also tracks sets (weight, reps) for the currently active exercise, and
  * provides read functions for fetching exercises (with sets) for any workout.
@@ -370,16 +349,6 @@ export function useExercises(): UseExercisesReturn {
 
       const newExercise = normalizeWorkoutExerciseRow(data as WorkoutExerciseRow);
 
-      try {
-        await decrementEquipmentCount(equipmentId);
-      } catch (reservationError) {
-        await supabase.from('workout_exercises').delete().eq('id', Number(newExercise.id));
-        const message = reservationError instanceof Error ? reservationError.message : 'Failed to reserve equipment';
-        setError(message);
-        setLoading(false);
-        throw new Error(message);
-      }
-
       setActiveExercise(newExercise);
       setSetsForActiveExercise([]);
       setLoading(false);
@@ -408,17 +377,6 @@ export function useExercises(): UseExercisesReturn {
       }
 
       const updated = normalizeWorkoutExerciseRow(data as WorkoutExerciseRow);
-
-      if (updated.equipment_id) {
-        try {
-          await incrementEquipmentCount(updated.equipment_id);
-        } catch (releaseError) {
-          const message = releaseError instanceof Error ? releaseError.message : 'Failed to release equipment';
-          setError(message);
-          setLoading(false);
-          throw new Error(message);
-        }
-      }
 
       if (activeExercise?.id === workoutExerciseId) {
         setActiveExercise(null);
@@ -591,8 +549,8 @@ export function useExercises(): UseExercisesReturn {
 
   /**
    * Hard-delete a workout_exercises row. Cascades to exercise_sets via FK.
-   * If the row was still active (ended_at IS NULL), the DB trigger increments
-   * gym_equipment.available_count back, releasing the equipment.
+   * If the row was still active (ended_at IS NULL), DB triggers release
+   * the equipment.
    */
   const deleteExercise = useCallback(
     async (workoutExerciseId: string): Promise<void> => {
@@ -622,17 +580,6 @@ export function useExercises(): UseExercisesReturn {
         setError(message);
         setLoading(false);
         throw new Error(message);
-      }
-
-      if (existingRow.equipment_id && existingRow.ended_at === null) {
-        try {
-          await incrementEquipmentCount(existingRow.equipment_id);
-        } catch (releaseError) {
-          const message = releaseError instanceof Error ? releaseError.message : 'Failed to release equipment';
-          setError(message);
-          setLoading(false);
-          throw new Error(message);
-        }
       }
 
       // Clear local active-exercise state if we just deleted the active one.
