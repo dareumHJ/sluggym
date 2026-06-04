@@ -3,15 +3,10 @@ Crowdsourced gym app that shows real-time equipment availability and recommends 
 
 ## 1. repo structure
 sluggym
-└── frontend
-└── backend
-└── docs
-
-## 2. branch for [Sprint 1]
-main
-└── dev
-    ├── feature/auth-backend        (Sangwoo)
-    ├── feature/auth-frontend       (Jeongmin)
-    ├── feature/db-schema           (Joon/Heidi)
-    ├── feature/gym-headcount       (Heidi)
-    └── feature/equipment-catalog   (Joon/Jeongmin)
+├── frontend (React Native & Expo mobile app codebase)
+│   └── __tests__ (Frontend Jest unit and integration test suite)
+├── backend (FastAPI backend server codebase)
+├── docs (Project documentation and guidelines)
+│   ├── RELEASE_docs (Release plans, summaries, and system test reports)
+│   └── SCRUM_docs (Scrum tracking logs and team agreements)
+└── scripts (Python and shell scripts for data polling and automation)
