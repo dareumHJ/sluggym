@@ -170,8 +170,8 @@ An automated test suite exists in `frontend/__tests__` and has been run successf
 ### Automated Test Execution
 * **Command**: `cd frontend && npm test -- --runInBand --timeout=15000`
 * **Result**: **PASS** (100%)
-* **Suites**: 28 passed, 28 total
-* **Tests**: 165 passed, 165 total
+* **Suites**: 27 passed, 27 total
+* **Tests**: 159 passed, 159 total
 
 ### Typechecking & Linting
 * **Typecheck Command**: `npx tsc --noEmit` (Successfully verified code types)
