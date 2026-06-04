@@ -158,7 +158,7 @@ npm run android
 Run frontend tests and lint:
 
 ```bash
-npm test
+npm test -- --runInBand --timeout=15000
 npm run lint
 ```
 
