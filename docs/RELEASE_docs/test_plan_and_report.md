@@ -168,7 +168,7 @@
 An automated test suite exists in `frontend/__tests__` and has been run successfully.
 
 ### Automated Test Execution
-* **Command**: `cd frontend && npm test -- --runInBand --timeout=15000`
+* **Command**: `cd frontend && npm test -- --testTimeout=15000`
 * **Result**: **PASS** (100%)
 * **Suites**: 27 passed, 27 total
 * **Tests**: 159 passed, 159 total
