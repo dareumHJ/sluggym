@@ -117,7 +117,7 @@ Below is a summary of major omissions, design shortcuts, and fallback behaviors 
 1. **Catalog Row Limits**:
    * The catalog list query in `useExerciseCatalog.ts` is capped at a hard limit of `500` rows, meaning very large catalogs could truncate exercises.
 2. **Gym Occupancy Capacity**:
-   * The maximum gym capacity is hardcoded as `150` throughout the frontend hooks and Home screen layout (`DEFAULT_CAPACITY = 150` in `recommendation.ts` and `index.tsx`).
+   * The maximum gym capacity is hardcoded as `150` centrally inside `gymCapacity.ts` (with a local default in `useWeeklyCongestion.ts`), as the backend database tables lack a dynamic capacity column.
 3. **Weekly Heatmap & Popular Times Fallback**:
    * If there is no historical occupancy data recorded in the database, the heatmap and Popular Times graph fall back to static mock arrays (`HOURLY` and `WEEKLY_CONGESTION` in `mock.ts`).
 4. **Scoring Fallback (IHRSA Baseline)**:
