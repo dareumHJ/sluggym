@@ -12,7 +12,8 @@ import { GYM_CAPACITY } from '../../src/lib/gymCapacity';
 import { busiestHourlyWindow, getGymLocalHour } from '../../src/lib/headcountHistory';
 import { useHeadcountHistory } from '../../src/hooks/useHeadcountHistory';
 import { useLiveOccupancy } from '../../src/hooks/useLiveOccupancy';
-import { HOURLY } from '../../src/data/mock';
+import { DEFAULT_HOURLY_HEADCOUNT } from '../../src/data/defaultOccupancy';
+import { DEFAULT_GYM_LOCATION } from '../../src/hooks/useHeadcountHistory';
 import { useWeeklyCongestion } from '../../src/hooks/useWeeklyCongestion';
 import { useRoutineRecommendations } from '../../src/hooks/useRoutineRecommendations';
 
@@ -116,13 +117,13 @@ export default function HomeScreen() {
   const firstName = displayName.split(' ')[0];
   const hour = getGymLocalHour(new Date());
   const occupancyCapacity = GYM_CAPACITY;
-  const { data: congestionData, loading: congestionLoading, error: congestionError } = useWeeklyCongestion('405 E Field Service Rd, Santa Cruz, CA 95064 미국');
-  const basePopularTimesData = headcountHistory.empty ? HOURLY : headcountHistory.popularTimes;
+  const { data: congestionData, loading: congestionLoading, error: congestionError } = useWeeklyCongestion(DEFAULT_GYM_LOCATION);
+  const basePopularTimesData = headcountHistory.empty ? DEFAULT_HOURLY_HEADCOUNT : headcountHistory.popularTimes;
   const popularTimesData = backfillPopularTimesFromCongestion({
     base: basePopularTimesData,
     buckets: headcountHistory.buckets,
     congestionData,
-    fallback: HOURLY,
+    fallback: DEFAULT_HOURLY_HEADCOUNT,
     weekdayName: headcountHistory.weekdayName,
   });
   const busiestHour = headcountHistory.empty

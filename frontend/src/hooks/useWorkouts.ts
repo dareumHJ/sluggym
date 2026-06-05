@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useIsMounted } from './useIsMounted';
 import { supabase } from '../lib/supabase';
 
 /**
@@ -135,7 +136,7 @@ export function useWorkouts(): UseWorkoutsReturn {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isMountedRef = useRef(true);
+  const isMountedRef = useIsMounted();
 
   /**
    * Re-fetch all workouts for the current user from the database.
@@ -301,11 +302,7 @@ export function useWorkouts(): UseWorkoutsReturn {
   }, []);
 
   useEffect(() => {
-    isMountedRef.current = true;
     void refresh();
-    return () => {
-      isMountedRef.current = false;
-    };
   }, [refresh]);
 
   const activeWorkout = workouts.find((w) => w.ended_at === null) ?? null;

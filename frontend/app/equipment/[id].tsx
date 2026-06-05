@@ -5,13 +5,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme, Space, Radius, Size, withAlpha } from '../../src/constants/theme';
 import { Card, Chip, Stars, AvailDot, Button, SectionLabel } from '../../src/components/primitives';
 import { MuscleDiagram } from '../../src/components/MuscleDiagram';
-import { EQUIPMENT, EXERCISES } from '../../src/data/mock';
+import { EQUIPMENT_GUIDE, EXERCISE_GUIDES } from '../../src/data/equipmentGuide';
 
 export default function EquipmentDetail() {
   const t = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const eq = EQUIPMENT.find(e => e.id === id);
-  const manual = eq ? EXERCISES[eq.id] ?? EXERCISES['bench-1'] : EXERCISES['bench-1'];
+  const eq = EQUIPMENT_GUIDE.find(e => e.id === id);
+  const manual = eq ? EXERCISE_GUIDES[eq.id] ?? EXERCISE_GUIDES['bench-1'] : EXERCISE_GUIDES['bench-1'];
   if (!eq) return <View style={{ flex: 1, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: t.text }}>Not found</Text></View>;
 
   return (
@@ -46,7 +46,7 @@ export default function EquipmentDetail() {
         <Card style={{ marginTop: Space.lg, flexDirection: 'row', gap: Space.lg, alignItems: 'center' }}>
           <View style={{ flex: 1, aspectRatio: 1, backgroundColor: t.surface3, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: t.textMuted, fontSize: Size.xs, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: '700' }}>Animated Demo</Text>
-            <Text style={{ color: t.textMuted, fontSize: 10, marginTop: 4 }}>▶ tap to play</Text>
+            <Text style={{ color: t.textMuted, fontSize: Size.xxs, marginTop: 4 }}>▶ tap to play</Text>
           </View>
           <MuscleDiagram primary={manual.primary} secondary={manual.secondary} size={90} />
         </Card>
@@ -54,11 +54,11 @@ export default function EquipmentDetail() {
         {/* Stats row */}
         <View style={{ flexDirection: 'row', gap: Space.sm, marginTop: Space.md }}>
           <View style={{ flex: 1, backgroundColor: t.surface2, borderRadius: Radius.lg, padding: Space.md, borderWidth: 1, borderColor: t.border }}>
-            <Text style={{ color: t.textSecondary, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: '700' }}>Level</Text>
+            <Text style={{ color: t.textSecondary, fontSize: Size.xxs, letterSpacing: 1, textTransform: 'uppercase', fontWeight: '700' }}>Level</Text>
             <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700', marginTop: 2 }}>{manual.difficulty}</Text>
           </View>
           <View style={{ flex: 1, backgroundColor: t.surface2, borderRadius: Radius.lg, padding: Space.md, borderWidth: 1, borderColor: t.border }}>
-            <Text style={{ color: t.textSecondary, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', fontWeight: '700' }}>Volume</Text>
+            <Text style={{ color: t.textSecondary, fontSize: Size.xxs, letterSpacing: 1, textTransform: 'uppercase', fontWeight: '700' }}>Volume</Text>
             <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700', marginTop: 2 }}>{manual.duration}</Text>
           </View>
         </View>

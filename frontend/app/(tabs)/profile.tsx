@@ -45,7 +45,18 @@ export default function ProfileScreen() {
 
   const confirmSignOut = () => Alert.alert('Sign out?', 'You will return to the login screen.', [
     { text: 'Cancel', style: 'cancel' },
-    { text: 'Sign out', style: 'destructive', onPress: async () => { await signOut(); router.replace('/(auth)/login'); } },
+    {
+      text: 'Sign out',
+      style: 'destructive',
+      onPress: async () => {
+        try {
+          await signOut();
+          router.replace('/(auth)/login');
+        } catch (err: unknown) {
+          Alert.alert('Sign out failed', err instanceof Error ? err.message : 'Please try again.');
+        }
+      },
+    },
   ]);
 
   const openPanel = (row: string) => {
@@ -65,8 +76,8 @@ export default function ProfileScreen() {
     try {
       await updateProfile(draftName);
       setActivePanel(null);
-    } catch (error: any) {
-      setPanelError(error?.message ?? 'Profile update failed.');
+    } catch (error: unknown) {
+      setPanelError(error instanceof Error ? error.message : 'Profile update failed.');
     } finally {
       setSavingProfile(false);
     }

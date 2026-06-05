@@ -10,7 +10,7 @@ LIVE_SOURCE = "api"
 FALLBACK_SOURCE = "fallback"
 
 
-def unavailable_payload(message: str):
+def unavailable_payload(message: str) -> dict:
     return {
         "location": LOCATION_NAME,
         "count": None,
@@ -26,7 +26,7 @@ def unavailable_payload(message: str):
 
 
 @app.get("/occupancy")
-async def get_occupancy():
+async def get_occupancy() -> dict:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -50,6 +50,5 @@ async def get_occupancy():
                 "is_live": True,
                 "is_stale": False,
             }
-    except Exception as e:
-        print(f"Occupancy fetch failed: {e}")
+    except Exception:
         return unavailable_payload("Live occupancy unavailable")

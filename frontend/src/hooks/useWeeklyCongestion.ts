@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useIsMounted } from './useIsMounted';
 import { supabase } from '../lib/supabase';
 import type { WeeklyCongestionCell } from '../components/WeeklyCongestionHeatmap';
 
@@ -47,7 +48,7 @@ export function useWeeklyCongestion(locationName: string, dateRangeDays = 30): U
   const [data, setData] = useState<WeeklyCongestionCell[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isMountedRef = useRef(true);
+  const isMountedRef = useIsMounted();
 
   const refresh = useCallback(async () => {
     if (!locationName) return;
@@ -169,9 +170,14 @@ export function useWeeklyCongestion(locationName: string, dateRangeDays = 30): U
       if (isMountedRef.current) {
         setData(cells);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (isMountedRef.current) {
-        setError(err.message || 'Failed to fetch historical headcount data.');
+        const msg =
+          err instanceof Error ? err.message :
+          typeof err === 'object' && err !== null && 'message' in err
+            ? String((err as Record<string, unknown>).message)
+            : 'Failed to fetch historical headcount data.';
+        setError(msg);
       }
     } finally {
       if (isMountedRef.current) {

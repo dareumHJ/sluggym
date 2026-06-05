@@ -5,8 +5,9 @@
 // The legacy `equipment_required` text column on `exercises` is intentionally
 // not used — `exercise_equipment` is the source of truth.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useIsMounted } from './useIsMounted';
 import { UNASSIGNED_EQUIPMENT_FILTER } from '../lib/exerciseFilters';
 import type { EquipmentListItem } from './useEquipment';
 
@@ -111,7 +112,7 @@ export function useExerciseCatalog(query = '', filters: ExerciseFilters = {}): U
   const [exercises, setExercises] = useState<ExerciseCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isMountedRef = useRef(true);
+  const isMountedRef = useIsMounted();
 
   const refresh = useCallback(async () => {
     if (isMountedRef.current) {
@@ -182,12 +183,7 @@ export function useExerciseCatalog(query = '', filters: ExerciseFilters = {}): U
   }, []);
 
   useEffect(() => {
-    isMountedRef.current = true;
     void refresh();
-
-    return () => {
-      isMountedRef.current = false;
-    };
   }, [refresh]);
 
   // Equipment filter chip options derive from gym_equipment.category (via exercises[].equipmentOptions).

@@ -22,7 +22,7 @@ type UseHeadcountHistoryState = {
 
 const LOOKBACK_DAYS = 28;
 const HISTORY_WINDOW_PAGE_SIZE = 2000;
-const DEFAULT_GYM_LOCATION = '405 E Field Service Rd, Santa Cruz, CA 95064 미국';
+export const DEFAULT_GYM_LOCATION = '405 E Field Service Rd, Santa Cruz, CA 95064 미국';
 
 async function resolveGymId(locationName: string) {
   let { data, error } = await supabase
