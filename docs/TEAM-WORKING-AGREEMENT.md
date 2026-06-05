@@ -26,16 +26,26 @@ We prioritize **readability over cleverness** to enable collective code ownershi
 - **Branches**: `feature/<desc>`, `fix/<desc>`, `chore/<desc>`
 - **Commits**: Conventional prefixes (`feat:`, `fix:`, `refactor:`, etc.)
 - **Response time**: Within 24h on weekdays for direct mentions
-- **Standups**: Tue/Thu/Sat — attendance expected
+- **Standups**: Tue / Thu / Sat — attendance and progress syncing expected
 
 ---
 
-## 2. Definition of Done (DoD)
+## 2. Process & Scrum Cadence
 
-A PR is "Done" when it satisfies the **4 Rules of Simple Design**: tests pass, no duplication, self-explanatory, no superfluous parts.
+We adapt standard Scrum practices to fit our team's active development style and ensure linear tracking honesty.
 
-### PR Checklist
+### Sprint Flexibility & Scope Control
+- **Adaptive Execution**: Recognizing that sprints do not always go perfectly according to plan, if unexpected complications or hidden sub-tasks emerge, the team commits to dedicating flexible, additional efforts to drive the sprint features to completion[cite: 5].
+- **Sprint Carry-over Policy**: If a sub-task or an entire User Story cannot be realistically completed within the strict sprint timebox despite team efforts, we do not force-merge or compromise quality[cite: 5]. As recommended by course staff/TAs, unfinished items are systematically moved back to the Product Backlog during the Sprint Review and explicitly scheduled as high-priority carry-over items for the next sprint[cite: 5].
 
+---
+
+## 3. Definition of Done (DoD)
+
+We maintain two rigorous levels of completion—at the engineering PR level and the user-facing story level—to ensure system health and functional success[cite: 4].
+
+### Task / PR Checklist (Engineering DoD - Existing)
+A PR is "Done" from an engineering perspective when it satisfies the **4 Rules of Simple Design** and the checklist below:
 - [ ] All relevant tests pass (`frontend/__tests__/`, `backend/__tests__/`)
 - [ ] No duplicated logic — refactored into shared utilities where appropriate
 - [ ] Code is self-explanatory; no excessive comments needed
@@ -44,3 +54,11 @@ A PR is "Done" when it satisfies the **4 Rules of Simple Design**: tests pass, n
 - [ ] RLS policies tested for both authenticated and anonymous contexts (if schema changed)
 - [ ] Schema documentation updated (if schema changed)
 - [ ] At least one teammate has reviewed and approved
+
+### User Story Completion Checklist (User-Facing DoD - Added)
+A parent **User Story** is officially considered fully "Done" and counted toward team velocity only when it meets the following criteria[cite: 4, 5]:
+- [ ] All underlying sub-tasks and PRs associated with the story are 100% Done.
+- [ ] **Scenario-Based Validation**: The user story can be successfully executed and verified end-to-end through its real-world user interaction scenarios[cite: 4].
+- [ ] All defined Acceptance Criteria are met, with objective UI tests properly validating loading, empty, error, and normal states[cite: 4, 5].
+- [ ] Explicitly inspected, demonstrated via a working environment, and **accepted by the Product Owner (PO)**[cite: 4].
+- [ ] **Immediate Defect Resolution**: Any critical bugs or regressions introduced by this feature are resolved within the active branch prior to the story being signed off[cite: 4].

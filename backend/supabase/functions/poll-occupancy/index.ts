@@ -17,7 +17,6 @@ Deno.serve(async (req) => {
     });
 
     if (!response.ok) {
-      console.log(`Backend returned ${response.status}, skipping`);
       return new Response(
         JSON.stringify({ status: "skipped", reason: `backend_${response.status}` }),
         { status: 200, headers: { "Content-Type": "application/json" } }
@@ -26,9 +25,7 @@ Deno.serve(async (req) => {
 
     const data = await response.json();
 
-    // DO NOT INSERT FALLBACK RESPONSES INTO DB - just log and skip
     if (data.source !== "api") {
-      console.log(`Backend returned fallback: ${data.message}`);
       return new Response(
         JSON.stringify({ status: "skipped", reason: "fallback_response" }),
         { status: 200, headers: { "Content-Type": "application/json" } }
@@ -37,7 +34,6 @@ Deno.serve(async (req) => {
 
     const count = data.count;
     if (count === null || count === undefined) {
-      console.log("No count in response, skipping");
       return new Response(
         JSON.stringify({ status: "skipped", reason: "no_count" }),
         { status: 200, headers: { "Content-Type": "application/json" } }
@@ -67,7 +63,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Persisted: count=${count}, sampled_at=${sampledAt}`);
     return new Response(
       JSON.stringify({ status: "ok", count, sampled_at: sampledAt }),
       { status: 200, headers: { "Content-Type": "application/json" } }

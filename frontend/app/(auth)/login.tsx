@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Link } from 'expo-router';
-import { Colors, Spacing, BorderRadius, FontSize } from '../../src/constants/theme';
+import { Colors, Spacing, BorderRadius, FontSize, Size } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function LoginScreen() {
@@ -29,8 +29,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await signInWithEmail(email, password);
-    } catch (error: any) {
-      setFormError(error?.message ?? 'Sign in failed. Please try again.');
+    } catch (error: unknown) {
+      setFormError(error instanceof Error ? error.message : 'Sign in failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -41,8 +41,8 @@ export default function LoginScreen() {
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
-    } catch (error: any) {
-      setFormError(error?.message ?? 'Google sign in failed. Please try again.');
+    } catch (error: unknown) {
+      setFormError(error instanceof Error ? error.message : 'Google sign in failed. Please try again.');
     } finally {
       setGoogleLoading(false);
     }
@@ -156,9 +156,9 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   formErrorContainer: {
-    backgroundColor: 'rgba(255, 82, 82, 0.1)',
+    backgroundColor: Colors.errorOverlayBg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 82, 82, 0.3)',
+    borderColor: Colors.errorOverlayBorder,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
@@ -169,9 +169,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: Colors.inputBackground,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: Colors.inputBorder,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: Colors.inputBorder,
   },
   dividerText: {
     fontSize: FontSize.sm,

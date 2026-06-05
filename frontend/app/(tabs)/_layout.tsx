@@ -2,7 +2,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { useTheme } from '../../src/constants/theme';
+import { useTheme, Size } from '../../src/constants/theme';
 
 const TabIcon = ({ name, color }: { name: string; color: string }) => {
   const s = 24;
@@ -27,7 +27,7 @@ export default function TabsLayout() {
         tabBarStyle: { backgroundColor: t.surface, borderTopColor: t.border, height: 84, paddingTop: 8, paddingBottom: 24 },
         tabBarActiveTintColor: t.primary,
         tabBarInactiveTintColor: t.textMuted,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+        tabBarLabelStyle: { fontSize: Size.xxs, fontWeight: '700', letterSpacing: 0.5 },
       }}
     >
       <Tabs.Screen name="index"   options={{ title: 'Home',    tabBarIcon: ({ color }) => <TabIcon name="home"    color={color} /> }} />

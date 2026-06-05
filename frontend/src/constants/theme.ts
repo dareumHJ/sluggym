@@ -68,6 +68,7 @@ export const Space = {
 } as const;
 export const Radius = { sm: 8, md: 12, lg: 16, xl: 22, '2xl': 28, full: 9999 } as const;
 export const Size = {
+  xxs: 10,
   xs: 11,
   sm: 13,
   md: 15,
@@ -129,6 +130,11 @@ export const Colors = {
   error: legacyDark.error,
   success: legacyDark.success,
   warning: legacyDark.warning,
+  inputBackground: 'rgba(255,255,255,0.05)',
+  inputBorder: 'rgba(255,255,255,0.1)',
+  modalOverlay: 'rgba(0,0,0,0.58)',
+  errorOverlayBg: 'rgba(255,82,82,0.1)',
+  errorOverlayBorder: 'rgba(255,82,82,0.3)',
 } as const;
 
 export const BorderRadius = Radius;

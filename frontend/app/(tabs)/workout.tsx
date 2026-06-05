@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useTheme, Space, Radius, Size, withAlpha } from '../../src/constants/theme';
+import { useTheme, Space, Radius, Size, withAlpha, Colors, type Theme } from '../../src/constants/theme';
 import { Card, Button, StatTile } from '../../src/components/primitives';
 import { ExerciseFilterPanel } from '../../src/components/ExerciseFilterPanel';
 import { ExerciseThumbnail, useExerciseImageFrameTick } from '../../src/components/ExerciseThumbnail';
@@ -929,7 +929,7 @@ export default function WorkoutScreen() {
                 <ExerciseThumbnail name={ex.name} frameTick={activeFrameTick} size={52} theme={t} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: t.primary, fontSize: Size.md, fontWeight: '800' }}>{ex.name}</Text>
-                  <Text style={{ color: t.textMuted, fontSize: 10, marginTop: 2 }}>{ex.equipmentName}</Text>
+                  <Text style={{ color: t.textMuted, fontSize: Size.xxs, marginTop: 2 }}>{ex.equipmentName}</Text>
                 </View>
               </Pressable>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}>
@@ -1046,8 +1046,8 @@ export default function WorkoutScreen() {
                 </View>
                 {showKgError || showRepsError ? (
                   <View style={{ marginLeft: 32, marginTop: 4, gap: 2 }}>
-                    {showKgError ? <Text style={{ color: t.error, fontSize: 10 }}>{kgResult.message}</Text> : null}
-                    {showRepsError ? <Text style={{ color: t.error, fontSize: 10 }}>{repsResult.message}</Text> : null}
+                    {showKgError ? <Text style={{ color: t.error, fontSize: Size.xxs }}>{kgResult.message}</Text> : null}
+                    {showRepsError ? <Text style={{ color: t.error, fontSize: Size.xxs }}>{repsResult.message}</Text> : null}
                   </View>
                 ) : null}
               </View>
@@ -1063,7 +1063,7 @@ export default function WorkoutScreen() {
       </ScrollView>
 
       <Modal transparent visible={showExercisePicker} animationType="slide" onRequestClose={() => setShowExercisePicker(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', justifyContent: 'flex-end' }}>
+        <View style={{ flex: 1, backgroundColor: Colors.modalOverlay, justifyContent: 'flex-end' }}>
           <View style={{ height: '82%', backgroundColor: t.bg, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Space.lg, gap: Space.md }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={{ color: t.text, fontSize: Size.xl, fontWeight: '800' }}>Add exercise</Text>
@@ -1102,7 +1102,7 @@ export default function WorkoutScreen() {
       </Modal>
 
       <Modal transparent visible={showEndModal} animationType="fade" onRequestClose={() => setShowEndModal(false)}>
-        <Pressable onPress={() => !endingInFlight && setShowEndModal(false)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', alignItems: 'center', justifyContent: 'center', padding: Space.lg }}>
+        <Pressable onPress={() => !endingInFlight && setShowEndModal(false)} style={{ flex: 1, backgroundColor: Colors.modalOverlay, alignItems: 'center', justifyContent: 'center', padding: Space.lg }}>
           <Pressable onPress={(event) => event.stopPropagation()} style={{ width: '100%', maxWidth: 420 }}>
             <Card style={{ gap: Space.md }}>
               <Text style={{ color: t.text, fontSize: Size.xl, fontWeight: '800' }}>End your session?</Text>
@@ -1143,7 +1143,7 @@ export default function WorkoutScreen() {
       >
         <Pressable
           onPress={() => !deleting && setPendingDeleteIdx(null)}
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', alignItems: 'center', justifyContent: 'center', padding: Space.lg }}
+          style={{ flex: 1, backgroundColor: Colors.modalOverlay, alignItems: 'center', justifyContent: 'center', padding: Space.lg }}
         >
           <Pressable onPress={(event) => event.stopPropagation()} style={{ width: '100%', maxWidth: 420 }}>
             <Card style={{ gap: Space.md }}>
@@ -1178,7 +1178,7 @@ export default function WorkoutScreen() {
   );
 }
 
-const colHdr = (t: any) => ({ color: t.textMuted, fontSize: 10, fontWeight: '700' as const, letterSpacing: 1.2 });
+const colHdr = (t: Theme) => ({ color: t.textMuted, fontSize: Size.xxs, fontWeight: '700' as const, letterSpacing: 1.2 });
 
 function validateSet(set: WorkoutSet) {
   const kg = validateWorkoutWeight(set.kg);

@@ -9,7 +9,7 @@ import {
   Pressable,
 } from 'react-native';
 import { Link } from 'expo-router';
-import { useTheme, Space, Size } from '../../src/constants/theme';
+import { useTheme, Space, Size, Colors } from '../../src/constants/theme';
 import { Button } from '../../src/components/primitives';
 import { useAuth } from '../../src/contexts/AuthContext';
 
@@ -36,8 +36,8 @@ export default function SignupScreen() {
     setLoading(true);
     try {
       await signUpWithEmail(email, password, name.trim() || undefined);
-    } catch (error: any) {
-      setErrorMessage(error?.message ?? 'Sign up failed. Try again.');
+    } catch (error: unknown) {
+      setErrorMessage(error instanceof Error ? error.message : 'Sign up failed. Try again.');
     } finally {
       setLoading(false);
     }
@@ -48,8 +48,8 @@ export default function SignupScreen() {
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
-    } catch (error: any) {
-      setErrorMessage(error?.message ?? 'Google sign up failed. Try again.');
+    } catch (error: unknown) {
+      setErrorMessage(error instanceof Error ? error.message : 'Google sign up failed. Try again.');
     } finally {
       setGoogleLoading(false);
     }
@@ -58,9 +58,9 @@ export default function SignupScreen() {
   const anyLoading = loading || googleLoading;
 
   const inputStyle = {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: Colors.inputBackground,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: Colors.inputBorder,
     borderRadius: 16,
     paddingHorizontal: Space.lg,
     paddingVertical: Space.md,
@@ -88,9 +88,9 @@ export default function SignupScreen() {
         {errorMessage ? (
           <View
             style={{
-              backgroundColor: 'rgba(255, 82, 82, 0.1)',
+              backgroundColor: Colors.errorOverlayBg,
               borderWidth: 1,
-              borderColor: 'rgba(255, 82, 82, 0.3)',
+              borderColor: Colors.errorOverlayBorder,
               borderRadius: 16,
               paddingHorizontal: Space.lg,
               paddingVertical: Space.md,
@@ -141,9 +141,9 @@ export default function SignupScreen() {
         />
 
         <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: Space.lg, gap: Space.md }}>
-          <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+          <View style={{ flex: 1, height: 1, backgroundColor: Colors.inputBorder }} />
           <Text style={{ color: t.textSecondary, fontSize: Size.sm }}>or</Text>
-          <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+          <View style={{ flex: 1, height: 1, backgroundColor: Colors.inputBorder }} />
         </View>
 
         <Button

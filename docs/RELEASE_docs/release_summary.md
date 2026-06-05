@@ -117,17 +117,22 @@ Below is a summary of major omissions, design shortcuts, and fallback behaviors 
 1. **Catalog Row Limits**:
    * The catalog list query in `useExerciseCatalog.ts` is capped at a hard limit of `500` rows, meaning very large catalogs could truncate exercises.
 2. **Gym Occupancy Capacity**:
-   * The maximum gym capacity is hardcoded as `150` throughout the frontend hooks and Home screen layout (`DEFAULT_CAPACITY = 150` in `recommendation.ts` and `index.tsx`).
+   * The maximum gym capacity is hardcoded as `150` centrally inside `gymCapacity.ts` (with a local default in `useWeeklyCongestion.ts`), as the backend database tables lack a dynamic capacity column.
 3. **Weekly Heatmap & Popular Times Fallback**:
-   * If there is no historical occupancy data recorded in the database, the heatmap and Popular Times graph fall back to static mock arrays (`HOURLY` and `WEEKLY_CONGESTION` in `mock.ts`).
+   * If there is no historical occupancy data recorded in the database, the Popular Times graph falls back to the static `HOURLY` mock array from `mock.ts`. The Weekly Congestion Heatmap does not use a mock fallback; instead, it renders empty cells and displays a warning banner indicating that not enough weekly traffic data has accumulated yet.
 4. **Scoring Fallback (IHRSA Baseline)**:
    * The third tier of the routine recommendation scoring engine relies on a hardcoded list of typical commercial gym traffic coefficients (`IHRSA_BASELINE_AVAILABILITY` inside `routineRecommendations.ts`), which may not accurately reflect the actual patterns of specific local facilities.
 5. **Timezone Normalization**:
-   * The hourly headcount history aggregator, the weekly congestion heatmap, and the optimal recommendation scoring engine all normalize date-parsing using the `America/Los_Angeles` timezone (the local time of UC Santa Cruz gyms) to ensure consistent binned results regardless of the user's local device/emulator timezone settings.
+   * The hourly headcount history aggregator, the weekly congestion heatmap, and the routine recommendation scoring engine (`routineRecommendations.ts`) all normalize date-parsing using the `America/Los_Angeles` timezone (the local time of UC Santa Cruz gyms) to ensure consistent binned results regardless of the user's local device/emulator timezone settings.
+
 
 ### Known Issues
 1. **Gym Headcount API Availability**
    * The gym headcount API sometimes returns invalid reponses to requests, rendering a 0 in the gym headcount in the home tab of the application.
+2. **TypeScript Static Typechecking**
+   * Static typechecking via `npx tsc --noEmit` fails on several external libraries (specifically `react-native-svg` and `lucide-react-native`) due to packaging/resolution issues with their type declarations.
+   * **Note / Impact**: This has zero runtime or build compilation impact because the Metro/Babel bundler strips TypeScript types entirely during code packaging, allowing the application to run successfully.
+
 ---
 
 ## 3. Product Backlog for Follow-On Project

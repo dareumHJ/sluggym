@@ -29,4 +29,13 @@ describe('workout validation', () => {
     expect(validateWorkoutSetCount(0).message).toBe('Add at least one set');
     expect(validateWorkoutSetCount(51).message).toBe('Set count looks too high');
   });
+
+  // BVA: exact boundary values that were previously untested
+  it('accepts the exact upper-boundary weight value of 1000 (BVA)', () => {
+    expect(validateWorkoutWeight('1000').isValid).toBe(true);
+  });
+
+  it('accepts the exact upper-boundary reps value of 500 (BVA)', () => {
+    expect(validateWorkoutReps('500').isValid).toBe(true);
+  });
 });

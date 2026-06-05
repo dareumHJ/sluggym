@@ -279,7 +279,7 @@ export default function StatsScreen() {
           <VolumeChart points={weeklyVolume} />
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: Space.sm }}>
             {weeklyVolume.map((week) => (
-              <Text key={week.label} style={{ color: t.textSecondary, fontSize: 10, fontWeight: '600' }}>
+              <Text key={week.label} style={{ color: t.textSecondary, fontSize: Size.xxs, fontWeight: '600' }}>
                 {week.label}
               </Text>
             ))}
@@ -375,7 +375,7 @@ export default function StatsScreen() {
                     <Text style={{ color: t.text, fontSize: Size.md, fontWeight: '700' }}>{workout.name}</Text>
                     <Text style={{ color: t.textSecondary, fontSize: Size.xs, marginTop: 2 }}>{workoutMeta(workout)}</Text>
                     {isCompleted ? (
-                      <Text style={{ color: t.primary, fontSize: 10, fontWeight: '700', marginTop: 6 }}>Tap to view details</Text>
+                      <Text style={{ color: t.primary, fontSize: Size.xxs, fontWeight: '700', marginTop: 6 }}>Tap to view details</Text>
                     ) : null}
                   </View>
                   {workout.ended_at === null ? (

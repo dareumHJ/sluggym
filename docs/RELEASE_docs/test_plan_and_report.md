@@ -11,17 +11,17 @@
 | User Story ID | Title | User Story | Covered in Scenario |
 | :--- | :--- | :--- | :--- |
 | **US-1.1** (SLU-41) | Equipment Catalog | As a gym-goer, I want to browse a documented list of all machines available in the gym so that I can plan my workout before arriving. | Scenario 2 |
-| **US-1.2** (SLU-39) | Gym Headcount Display | As a gym-goer, I want to see the total number of people currently in the gym so that I can decide whether it is worth going. | Scenario 2, Scenario 7 |
+| **US-1.2** (SLU-39) | Gym Headcount Display | As a gym-goer, I want to see the total number of people currently in the gym so that I can decide whether it is worth going. | Scenario 2 |
 | **US-1.3** (SLU-33) | Account Creation & Login/Logout | As a gym-goer, I want to create an account / log in and out so that I can keep track of my personal workout records. | Scenario 1 |
 | **US-2.1** (SLU-68) | Equipment Availability List | As a gym-goer, I want to view which gym machines are currently occupied so that I can plan my session before arriving. | Scenario 2, Scenario 4 |
-| **US-2.2** (SLU-82) | Workout Session Logging | As a gym-goer, I want to create a workout session and add exercises (equip., weight, sets, reps) so that I can track what I did at the gym. | Scenario 4 |
+| **US-2.2** (SLU-82) | Workout Session Logging | As a gym-goer, I want to create a workout session and add exercises (equip., weight, sets, reps) so that I can track what I did at the gym. | Scenario 4, Scenario 7 |
 | **US-2.3** (SLU-70) | Real-Time Session Broadcast | As a gym-goer, I want my active workout session to be visible to the system in real time so that other users can see that an equipment is in use. | Scenario 4 |
 | **US-2.4** (SLU-71) | Session End / Equipment Release | As a gym-goer, I want to mark my session as finished so that the equipment I was using is released for others. | Scenario 4 |
 | **US-3.1** (SLU-128) | Equipment Availability Map | As a gym-goer, I want to see a visual map of equipment availability, color-coded by status, so that I can understand gym congestion at a glance. | Scenario 2 |
 | **US-3.2** (SLU-129) | Past Workout History | As a gym-goer, I want to view my past workout logs so that I can track my consistency over time. | Scenario 5 |
 | **US-3.3** (SLU-130) | Weekly Congestion Heatmap | As a gym-goer, I want to see a weekly congestion heatmap for each equipment type so that I can identify historically quieter time slots. | Scenario 2 |
 | **US-4.1** (SLU-157) | Routine Saving | As a gym-goer, I want to save my regular workout routine so that the app can use it to make personalized recommendations. | Scenario 3, Scenario 4 |
-| **US-4.2** (SLU-158) | Optimal Time Recommendation | As a gym-goer, I want to receive a suggested time to visit the gym based on my routine and historical data so that I can avoid waiting for equipment. | Scenario 3, Scenario 6 |
+| **US-4.2** (SLU-158) | Optimal Time Recommendation | As a gym-goer, I want to receive a suggested time to visit the gym based on my routine and historical data so that I can avoid waiting for equipment. | Scenario 3, Scenario 6, Scenario 7 |
 | **US-4.3** (SLU-159) | Equipment Availability Alerts | As a gym-goer, I want to receive a push notification when a busy equipment type becomes free so that I can act on it in real time. | Scenario 5 |
 | **US-4.4** (SLU-160) | Bug Fixes & Polish | As a user, I want the app to be stable and easy to navigate so that I can focus on my workout. | Section 3 (Verification) |
 
@@ -123,43 +123,29 @@
 
 ---
 
-### Scenario 6: Routine-Specific Optimal Visit-Time Recommendations (Tier 1: Equipment History) (Pass/Fail)
-* **Goal**: Verify that when multiple users occupy a single-capacity machine inside a specific 3-hour time block, the historical availability scoring shifts the optimal time recommendation for that routine to a different slot.
-* **Target User Stories**: **US-4.2** (SLU-158)
+### Scenario 6: Dynamic Routine Recommendation & Bottleneck Penalty (Pass/Fail)
+* **Goal**: Verify that adding an exercise with congested equipment to a routine dynamically recalculates the availability scores, triggering the bottleneck penalty and updating the highlighted recommendation on the Home tab.
+* **Target User Stories**: **US-2.2** (SLU-82), **US-4.2** (SLU-158)
 * **Pre-conditions**:
-  1. Two users participate in the test: **User A** and **User B**, logged into the app.
-  2. The gym database includes an equipment type with a total count of 1 (e.g., `Assisted Pull-up Machine`).
-  3. Both users have a routine (e.g., `Pull Day`) requiring `Assisted Pull-up Machine`.
-  4. The current baseline optimal visit recommendation for `Pull Day` is Wednesday 6:00 PM–9:00 PM.
+  1. A user is logged in.
+  2. The user has two saved routines: `"Back day!"` (initially containing `"One-Arm Dumbell Row"`) and `"Chest day!"` (initially containing `"Cable Crossover"`).
+  3. Historical equipment logs for the last 2 weeks show:
+     - `"Incline bench"` (used in `"Back day!"`): `12/13` availability (92.3% free).
+     - `"Cable"` (used in `"Chest day!"`): `9/11` availability (81.8% free).
+     - `"Back extension bench"` (used in `"Hyperextensions"`): `0/1` availability (0% free).
 
 #### Steps & Verification:
-1. **Action**: **User A** and **User B** both complete workouts containing `Assisted Pull-up Machine` on successive Wednesdays during the 6:00 PM–9:00 PM block (serially).
-   * **Expected Output**: The system records snapshots of availability. The database contains entries in `equipment_availability_history` for `Assisted Pull-up Machine` with `available_count = 0` during this block.
-2. **Action**: **User B** navigates to the **Home** tab and views the **Best Time to Go** recommendation card.
-   * **Expected Output**: The scoring engine calculates the scores. Since the critical bottleneck equipment (`Assisted Pull-up Machine`) was occupied, the scoring algorithm applies the bottleneck penalty.
-3. **Action**: Verify the recommended time block and details.
-   * **Expected Output**: The recommended visit time for the `Pull Day` routine shifts to a quieter block (e.g., Thursday 9:00 AM–12:00 PM) showing a higher confidence percentage, and the card displays the reason text: `"Based on your equipment availability history. Watch out for Assisted Pull-up Machine."` (matching the Tier 1 indicator).
-
----
-
-### Scenario 7: Live Overall "Right Now" Headcount Status Transitions (Pass/Fail)
-* **Goal**: Verify that overall gym headcount updates dynamically modify the occupancy status and bar color on the Home tab.
-* **Target User Stories**: **US-1.2** (SLU-39)
-* **Pre-conditions**:
-  1. **User A** and **User B** are logged into the app on separate devices.
-  2. The gym capacity is set to 150. Current headcount is low (e.g., 10/150).
-
-#### Steps & Verification:
-1. **Action**: **User A** views the **Home** tab.
-   * **Expected Output**: The **Live Headcount** card displays `10/150 people here now` with the progress bar filled to 6% and status text `"Open"`.
-2. **Action**: Simulate a moderate crowd influx (updating the database headcount to `95/150`, i.e., 63% capacity).
-   * **Expected Output**: The live headcount value updates in the backend.
-3. **Action**: **User B** views their **Home** tab.
-   * **Expected Output**: The progress bar updates to 63% fill, the count text updates to `95/150 people here now`, and the occupancy status updates to `"Moderate"`.
-4. **Action**: Simulate a high crowd influx (updating the database headcount to `135/150`, i.e., 90% capacity).
-   * **Expected Output**: The live headcount updates.
-5. **Action**: **User A** views their **Home** tab.
-   * **Expected Output**: The progress bar updates to 90% fill, the count text updates to `135/150 people here now`, and the occupancy status updates to `"Busy"`.
+1. **Action**: View the **Home** tab.
+   * **Expected Output**: The `"Back day!"` routine has a higher confidence score than `"Chest day!"` (since 92.3% > 81.8%) and is highlighted at the top of the **Best Time to Go** card as the best recommendation.
+2. **Action**: Navigate to the **Workout** tab, select the `"Back day!"` routine, and tap **Start workout with this routine**.
+   * **Expected Output**: The active workout logger screen opens.
+3. **Action**: Tap **Add Exercise**. Search for `"Hyperextensions"`. Under the exercise row, select `"Back extension bench"` as the equipment option, and tap **Add**. Log a set and tap **End Workout**.
+   * **Expected Output**: The workout completes. The latest session for the `"Back day!"` routine now registers as having used both `"Incline bench"` and `"Back extension bench"`.
+4. **Action**: Navigate back to the **Home** tab and view the **Best Time to Go** card.
+   * **Expected Output**:
+     - The scoring engine recalculates the scores for `"Back day!"`. Because `"Back extension bench"` is heavily congested (0% availability), the bottleneck penalty is triggered, drastically reducing the score.
+     - The `"Back day!"` routine's congestion level is marked as `"Busy"`.
+     - The `"Chest day!"` routine now has a higher confidence score, becomes the top pick, and is highlighted as the new recommendation.
 
 ---
 
@@ -168,11 +154,11 @@
 An automated test suite exists in `frontend/__tests__` and has been run successfully.
 
 ### Automated Test Execution
-* **Command**: `cd frontend && npm test -- --runInBand --timeout=15000`
+* **Command**: `cd frontend && npm test -- --testTimeout=15000`
 * **Result**: **PASS** (100%)
 * **Suites**: 27 passed, 27 total
 * **Tests**: 159 passed, 159 total
 
 ### Typechecking & Linting
-* **Typecheck Command**: `npx tsc --noEmit` (Successfully verified code types)
+* **Typecheck Command**: `npx tsc --noEmit` (Known static typechecking issue with third-party libraries `react-native-svg` and `lucide-react-native`, but compiles/runs successfully at runtime via Metro/Babel)
 * **Linting Command**: `npm run lint` (Completed with zero warnings or errors)

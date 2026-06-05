@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useIsMounted } from './useIsMounted';
 import { AppState } from 'react-native';
 import { supabase } from '../lib/supabase';
 
@@ -74,7 +75,7 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<'live' | 'reconnecting' | 'offline'>('reconnecting');
-  const isMountedRef = useRef(true);
+  const isMountedRef = useIsMounted();
   const connectionStateRef = useRef<'live' | 'reconnecting' | 'offline'>('reconnecting');
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const channelNameRef = useRef(`gym-equipment-ui-refresh-${++equipmentChannelCounter}`);
@@ -124,7 +125,6 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
   }, []);
 
   useEffect(() => {
-    isMountedRef.current = true;
     void refreshInternal({ silent: false });
 
     const clearReconnectTimer = () => {
@@ -202,7 +202,6 @@ export function useEquipment(query = '', category = 'All'): UseEquipmentReturn {
     });
 
     return () => {
-      isMountedRef.current = false;
       clearReconnectTimer();
       appStateSubscription.remove();
       removeCurrentChannel();

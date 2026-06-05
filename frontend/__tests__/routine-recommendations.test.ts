@@ -24,14 +24,24 @@ import {
 // test runner's timezone.
 
 function isoAt(year: number, month: number, day: number, hour: number): string {
-  // Build a local-time date, then output ISO so the algorithm can read it back.
-  return new Date(year, month - 1, day, hour, 0, 0).toISOString();
+  // Return an ISO string with a fixed Pacific Time offset (PDT = -07:00)
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:00:00-07:00`;
 }
 
 function dayOfWeek(year: number, month: number, day: number): number {
-  const jsDay = new Date(year, month - 1, day).getDay();
-  return jsDay === 0 ? 6 : jsDay - 1;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const dateStr = `${year}-${pad(month)}-${pad(day)}T12:00:00-07:00`;
+  const date = new Date(dateStr);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    timeZone: 'America/Los_Angeles',
+  });
+  const dayStr = formatter.format(date);
+  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return labels.indexOf(dayStr);
 }
+
 
 describe('buildBuckets', () => {
   it('produces 42 buckets (7 days × 6 hour blocks)', () => {
