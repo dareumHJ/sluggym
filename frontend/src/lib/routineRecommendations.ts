@@ -111,22 +111,56 @@ export function buildBuckets(): TimeBucket[] {
 }
 
 /**
- * Convert an ISO timestamp to a bucket key based on the user's local time.
- * Returns null if the timestamp falls outside any 3-hour block (e.g. midnight-6am).
+ * Resolves local hour and day index normalized to America/Los_Angeles timezone.
  */
-export function bucketKeyForTimestamp(isoTimestamp: string): string | null {
+export function getPacificDayAndHour(isoTimestamp: string): { dayIndex: number; hour: number } | null {
   const date = new Date(isoTimestamp);
   if (Number.isNaN(date.getTime())) return null;
 
-  const localHour = date.getHours();
-  const block = HOUR_BLOCKS.find((b) => localHour >= b.startHour && localHour < b.endHour);
+  try {
+    const dayFormatter = new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      timeZone: 'America/Los_Angeles',
+    });
+    const hourFormatter = new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      hour12: false,
+      timeZone: 'America/Los_Angeles',
+    });
+
+    const dayStr = dayFormatter.format(date).substring(0, 3); // e.g. "Mon"
+    const hourStr = hourFormatter.format(date);
+    const hour = parseInt(hourStr, 10);
+
+    const dayIndex = DAY_LABELS.indexOf(dayStr as DayLabel);
+    if (dayIndex === -1) return null;
+
+    return { dayIndex, hour };
+  } catch {
+    // Fallback if Intl is unsupported or fails in the runtime env
+    // Convert JS day (Sun=0..Sat=6) to ISO day (Mon=0..Sun=6)
+    const jsDay = date.getUTCDay();
+    const dayIndex = jsDay === 0 ? 6 : jsDay - 1;
+    const hour = date.getUTCHours();
+    return { dayIndex, hour };
+  }
+}
+
+/**
+ * Convert an ISO timestamp to a bucket key based on America/Los_Angeles timezone.
+ * Returns null if the timestamp falls outside any 3-hour block (e.g. midnight-6am).
+ */
+export function bucketKeyForTimestamp(isoTimestamp: string): string | null {
+  const parsed = getPacificDayAndHour(isoTimestamp);
+  if (!parsed) return null;
+
+  const { dayIndex, hour } = parsed;
+  const block = HOUR_BLOCKS.find((b) => hour >= b.startHour && hour < b.endHour);
   if (!block) return null;
 
-  // Convert JS day (Sun=0..Sat=6) to ISO day (Mon=0..Sun=6)
-  const jsDay = date.getDay();
-  const dayIndex = jsDay === 0 ? 6 : jsDay - 1;
   return `${dayIndex}:${block.hourLabel}`;
 }
+
 
 export function bucketKey(bucket: TimeBucket): string {
   return `${bucket.dayIndex}:${bucket.hourLabel}`;
