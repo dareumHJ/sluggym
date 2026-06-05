@@ -44,7 +44,7 @@ We adapt standard Scrum practices to fit our team's active development style and
 
 We maintain two rigorous levels of completion—at the engineering PR level and the user-facing story level—to ensure system health and functional success.
 
-### Task / PR Checklist (Engineering DoD - Existing)
+### Task / PR Checklist (Engineering DoD)
 A PR is "Done" from an engineering perspective when it satisfies the **4 Rules of Simple Design** and the checklist below:
 - [ ] All relevant tests pass (`frontend/__tests__/`, `backend/__tests__/`)
 - [ ] No duplicated logic — refactored into shared utilities where appropriate
@@ -55,7 +55,7 @@ A PR is "Done" from an engineering perspective when it satisfies the **4 Rules o
 - [ ] Schema documentation updated (if schema changed)
 - [ ] At least one teammate has reviewed and approved
 
-### User Story Completion Checklist (User-Facing DoD - Added)
+### User Story Completion Checklist (User-Facing DoD)
 A parent **User Story** is officially considered fully "Done" and counted toward team velocity only when it meets the following criteria:
 - [ ] All underlying sub-tasks and PRs associated with the story are 100% Done.
 - [ ] **Scenario-Based Validation**: The user story can be successfully executed and verified end-to-end through its real-world user interaction scenarios.
