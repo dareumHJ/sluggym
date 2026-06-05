@@ -129,6 +129,10 @@ Below is a summary of major omissions, design shortcuts, and fallback behaviors 
 ### Known Issues
 1. **Gym Headcount API Availability**
    * The gym headcount API sometimes returns invalid reponses to requests, rendering a 0 in the gym headcount in the home tab of the application.
+2. **TypeScript Static Typechecking**
+   * Static typechecking via `npx tsc --noEmit` fails on several external libraries (specifically `react-native-svg` and `lucide-react-native`) due to packaging/resolution issues with their type declarations.
+   * **Note / Impact**: This has zero runtime or build compilation impact because the Metro/Babel bundler strips TypeScript types entirely during code packaging, allowing the application to run successfully.
+
 ---
 
 ## 3. Product Backlog for Follow-On Project

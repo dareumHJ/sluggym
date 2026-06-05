@@ -160,5 +160,5 @@ An automated test suite exists in `frontend/__tests__` and has been run successf
 * **Tests**: 159 passed, 159 total
 
 ### Typechecking & Linting
-* **Typecheck Command**: `npx tsc --noEmit` (Successfully verified code types)
+* **Typecheck Command**: `npx tsc --noEmit` (Known static typechecking issue with third-party libraries `react-native-svg` and `lucide-react-native`, but compiles/runs successfully at runtime via Metro/Babel)
 * **Linting Command**: `npm run lint` (Completed with zero warnings or errors)
