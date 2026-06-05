@@ -2,7 +2,7 @@
 
 **Product Name**: SlugGym  
 **Team Name**: Strong Slugs  
-**Date**: [Date Placeholder]  
+**Date**: 2026.06.05  
 
 ---
 
